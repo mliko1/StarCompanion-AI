@@ -1,0 +1,240 @@
+# -*- coding: utf-8 -*-
+"""数据库 CRUD 函数（供 API 层调用，每个函数独立会话）。"""
+
+import datetime
+
+from sqlalchemy import func
+
+from database import models
+from database.db import SessionLocal
+
+
+# ---------- 儿童档案 ----------
+def list_children():
+    db = SessionLocal()
+    try:
+        return db.query(models.ChildInfo).order_by(models.ChildInfo.id).all()
+    finally:
+        db.close()
+
+
+def get_or_create_child(nickname="匿名儿童"):
+    db = SessionLocal()
+    try:
+        c = db.query(models.ChildInfo).filter_by(nickname=nickname).first()
+        if not c:
+            c = models.ChildInfo(nickname=nickname)
+            db.add(c)
+            db.commit()
+            db.refresh(c)
+        return c
+    finally:
+        db.close()
+
+
+def create_child(nickname, birth_year=None, gender=None, notes=None):
+    db = SessionLocal()
+    try:
+        c = models.ChildInfo(nickname=nickname, birth_year=birth_year,
+                             gender=gender, notes=notes)
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+        return c
+    finally:
+        db.close()
+
+
+# ---------- 任务库 ----------
+def list_tasks():
+    db = SessionLocal()
+    try:
+        return db.query(models.TrainingTask).order_by(
+            models.TrainingTask.category,
+            models.TrainingTask.difficulty).all()
+    finally:
+        db.close()
+
+
+def get_task_by_task_id(task_id):
+    db = SessionLocal()
+    try:
+        return db.query(models.TrainingTask).filter_by(task_id=task_id).first()
+    finally:
+        db.close()
+
+
+# ---------- 场景 ----------
+def list_scenes():
+    db = SessionLocal()
+    try:
+        return db.query(models.SceneInfo).order_by(models.SceneInfo.id).all()
+    finally:
+        db.close()
+
+
+def get_scene_by_name(name):
+    db = SessionLocal()
+    try:
+        return db.query(models.SceneInfo).filter_by(name=name).first()
+    finally:
+        db.close()
+
+
+# ---------- 训练会话 ----------
+def create_session(session_code, child_id, task_id, scene_id, prompt_level=0):
+    db = SessionLocal()
+    try:
+        s = models.TrainingSession(
+            session_code=session_code, child_id=child_id, task_id=task_id,
+            scene_id=scene_id, prompt_level=prompt_level, status="running")
+        db.add(s)
+        db.commit()
+        db.refresh(s)
+        return s
+    finally:
+        db.close()
+
+
+def get_session(session_id):
+    db = SessionLocal()
+    try:
+        return db.get(models.TrainingSession, session_id)
+    finally:
+        db.close()
+
+
+def get_session_by_code(session_code):
+    db = SessionLocal()
+    try:
+        return db.query(models.TrainingSession).filter_by(
+            session_code=session_code).first()
+    finally:
+        db.close()
+
+
+def update_session(session_id, **kwargs):
+    db = SessionLocal()
+    try:
+        s = db.get(models.TrainingSession, session_id)
+        if s:
+            for k, v in kwargs.items():
+                setattr(s, k, v)
+            db.commit()
+        return s
+    finally:
+        db.close()
+
+
+def list_recent_sessions(limit=20):
+    db = SessionLocal()
+    try:
+        return db.query(models.TrainingSession).order_by(
+            models.TrainingSession.id.desc()).limit(limit).all()
+    finally:
+        db.close()
+
+
+# ---------- 动作记录 ----------
+def add_action_record(session_id, step_order=None, step_name=None,
+                      action_id=None, detected=False, confidence=None):
+    db = SessionLocal()
+    try:
+        r = models.ActionRecord(
+            session_id=session_id, step_order=step_order, step_name=step_name,
+            action_id=action_id, detected=detected, confidence=confidence)
+        db.add(r)
+        db.commit()
+        db.refresh(r)
+        return r
+    finally:
+        db.close()
+
+
+# ---------- 视觉记录 + 人工确认（人机协同：分开存储） ----------
+def add_vision_record(session_id, model_version_id=None, raw_result=None,
+                      confidence=None, uncertainty=False, uncertainty_reason=None):
+    db = SessionLocal()
+    try:
+        r = models.VisionRecord(
+            session_id=session_id, model_version_id=model_version_id,
+            raw_result=raw_result, confidence=confidence,
+            uncertainty=uncertainty, uncertainty_reason=uncertainty_reason)
+        db.add(r)
+        db.commit()
+        db.refresh(r)
+        return r
+    finally:
+        db.close()
+
+
+def list_vision_records(limit=100, pending_only=False):
+    db = SessionLocal()
+    try:
+        q = db.query(models.VisionRecord).order_by(models.VisionRecord.id.desc())
+        if pending_only:
+            reviewed = db.query(models.ManualReview.vision_record_id).subquery()
+            q = q.filter(models.VisionRecord.uncertain.is_(True)).filter(
+                ~models.VisionRecord.id.in_(reviewed))
+        return q.limit(limit).all()
+    finally:
+        db.close()
+
+
+def add_manual_review(vision_record_id, reviewer="家长", is_correct=True,
+                      corrected_result=None, note=None):
+    db = SessionLocal()
+    try:
+        r = models.ManualReview(
+            vision_record_id=vision_record_id, reviewer=reviewer,
+            is_correct=is_correct, corrected_result=corrected_result, note=note)
+        db.add(r)
+        db.commit()
+        db.refresh(r)
+        return r
+    finally:
+        db.close()
+
+
+def list_manual_reviews(limit=100):
+    db = SessionLocal()
+    try:
+        return db.query(models.ManualReview).order_by(
+            models.ManualReview.id.desc()).limit(limit).all()
+    finally:
+        db.close()
+
+
+# ---------- 辅助建议 ----------
+def add_recommendation(session_id=None, advice_type=None, text=None,
+                       pdi=None, independent_rate=None, completion_rate=None):
+    db = SessionLocal()
+    try:
+        r = models.Recommendation(
+            session_id=session_id, advice_type=advice_type, text=text,
+            pdi=pdi, independent_rate=independent_rate,
+            completion_rate=completion_rate)
+        db.add(r)
+        db.commit()
+        db.refresh(r)
+        return r
+    finally:
+        db.close()
+
+
+def list_recommendations(limit=20):
+    db = SessionLocal()
+    try:
+        return db.query(models.Recommendation).order_by(
+            models.Recommendation.id.desc()).limit(limit).all()
+    finally:
+        db.close()
+
+
+# ---------- 模型版本 ----------
+def list_model_versions():
+    db = SessionLocal()
+    try:
+        return db.query(models.ModelVersion).order_by(models.ModelVersion.id).all()
+    finally:
+        db.close()

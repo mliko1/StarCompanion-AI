@@ -1,0 +1,1040 @@
+{
+  "_说明": "星伴AI 训练任务库：动作由 data/actions.json 声明式驱动",
+  "tasks": [
+    {
+      "task_id": "action_raise_right",
+      "name": "举右手",
+      "type": "action",
+      "params": {
+        "action_id": "raise_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_raise_left",
+      "name": "举左手",
+      "type": "action",
+      "params": {
+        "action_id": "raise_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_both_hands_up",
+      "name": "双手上举",
+      "type": "action",
+      "params": {
+        "action_id": "both_hands_up"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_clap",
+      "name": "拍手",
+      "type": "action",
+      "params": {
+        "action_id": "clap"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_wave_right",
+      "name": "挥右手",
+      "type": "action",
+      "params": {
+        "action_id": "wave_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_wave_left",
+      "name": "挥左手",
+      "type": "action",
+      "params": {
+        "action_id": "wave_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_cross_arms",
+      "name": "双手交叉",
+      "type": "action",
+      "params": {
+        "action_id": "cross_arms"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hands_on_hips",
+      "name": "叉腰",
+      "type": "action",
+      "params": {
+        "action_id": "hands_on_hips"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hands_on_head",
+      "name": "抱头",
+      "type": "action",
+      "params": {
+        "action_id": "hands_on_head"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_stretch_chest",
+      "name": "扩胸",
+      "type": "action",
+      "params": {
+        "action_id": "stretch_chest"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_nod_down",
+      "name": "低头",
+      "type": "action",
+      "params": {
+        "action_id": "nod_down"
+      },
+      "difficulty": 1,
+      "category": "头部动作"
+    },
+    {
+      "task_id": "action_head_up",
+      "name": "抬头",
+      "type": "action",
+      "params": {
+        "action_id": "head_up"
+      },
+      "difficulty": 1,
+      "category": "头部动作"
+    },
+    {
+      "task_id": "action_head_tilt_left",
+      "name": "歪头左",
+      "type": "action",
+      "params": {
+        "action_id": "head_tilt_left"
+      },
+      "difficulty": 1,
+      "category": "头部动作"
+    },
+    {
+      "task_id": "action_head_tilt_right",
+      "name": "歪头右",
+      "type": "action",
+      "params": {
+        "action_id": "head_tilt_right"
+      },
+      "difficulty": 1,
+      "category": "头部动作"
+    },
+    {
+      "task_id": "action_squat",
+      "name": "蹲下",
+      "type": "action",
+      "params": {
+        "action_id": "squat"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_stand_up",
+      "name": "站直",
+      "type": "action",
+      "params": {
+        "action_id": "stand_up"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_lift_left_leg",
+      "name": "抬左腿",
+      "type": "action",
+      "params": {
+        "action_id": "lift_left_leg"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_lift_right_leg",
+      "name": "抬右腿",
+      "type": "action",
+      "params": {
+        "action_id": "lift_right_leg"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_bend_forward",
+      "name": "弯腰",
+      "type": "action",
+      "params": {
+        "action_id": "bend_forward"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_touch_head",
+      "name": "摸头",
+      "type": "action",
+      "params": {
+        "action_id": "touch_head"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_shoulder",
+      "name": "摸肩",
+      "type": "action",
+      "params": {
+        "action_id": "touch_shoulder"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_knee",
+      "name": "摸膝盖",
+      "type": "action",
+      "params": {
+        "action_id": "touch_knee"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_belly",
+      "name": "拍肚子",
+      "type": "action",
+      "params": {
+        "action_id": "touch_belly"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_t_pose",
+      "name": "双臂侧平举",
+      "type": "action",
+      "params": {
+        "action_id": "t_pose"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_y_pose",
+      "name": "双臂斜上举",
+      "type": "action",
+      "params": {
+        "action_id": "y_pose"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arm_side_right",
+      "name": "右臂侧平举",
+      "type": "action",
+      "params": {
+        "action_id": "arm_side_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arm_forward_right",
+      "name": "右臂前平举",
+      "type": "action",
+      "params": {
+        "action_id": "arm_forward_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_salute_right",
+      "name": "敬礼右手",
+      "type": "action",
+      "params": {
+        "action_id": "salute_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hand_on_chest_right",
+      "name": "右手捂胸",
+      "type": "action",
+      "params": {
+        "action_id": "hand_on_chest_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hand_on_hip_right",
+      "name": "右手叉腰",
+      "type": "action",
+      "params": {
+        "action_id": "hand_on_hip_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_elbow_out_right",
+      "name": "右肘外展",
+      "type": "action",
+      "params": {
+        "action_id": "elbow_out_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arm_diag_up_right",
+      "name": "右臂斜上举",
+      "type": "action",
+      "params": {
+        "action_id": "arm_diag_up_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arm_half_right",
+      "name": "右臂半举",
+      "type": "action",
+      "params": {
+        "action_id": "arm_half_right"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arm_side_left",
+      "name": "左臂侧平举",
+      "type": "action",
+      "params": {
+        "action_id": "arm_side_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arm_forward_left",
+      "name": "左臂前平举",
+      "type": "action",
+      "params": {
+        "action_id": "arm_forward_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_salute_left",
+      "name": "敬礼左手",
+      "type": "action",
+      "params": {
+        "action_id": "salute_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hand_on_chest_left",
+      "name": "左手捂胸",
+      "type": "action",
+      "params": {
+        "action_id": "hand_on_chest_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hand_on_hip_left",
+      "name": "左手叉腰",
+      "type": "action",
+      "params": {
+        "action_id": "hand_on_hip_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_elbow_out_left",
+      "name": "左肘外展",
+      "type": "action",
+      "params": {
+        "action_id": "elbow_out_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arm_diag_up_left",
+      "name": "左臂斜上举",
+      "type": "action",
+      "params": {
+        "action_id": "arm_diag_up_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arm_half_left",
+      "name": "左臂半举",
+      "type": "action",
+      "params": {
+        "action_id": "arm_half_left"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hug_self",
+      "name": "拥抱自己",
+      "type": "action",
+      "params": {
+        "action_id": "hug_self"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hands_pray",
+      "name": "双手合十",
+      "type": "action",
+      "params": {
+        "action_id": "hands_pray"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_hands_behind",
+      "name": "双手背后",
+      "type": "action",
+      "params": {
+        "action_id": "hands_behind"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_shrug",
+      "name": "耸肩",
+      "type": "action",
+      "params": {
+        "action_id": "shrug"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_arms_down",
+      "name": "双臂下垂",
+      "type": "action",
+      "params": {
+        "action_id": "arms_down"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_wave_both",
+      "name": "双手挥动",
+      "type": "action",
+      "params": {
+        "action_id": "wave_both"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_clap_overhead",
+      "name": "头顶拍手",
+      "type": "action",
+      "params": {
+        "action_id": "clap_overhead"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_raise_both_forward",
+      "name": "双手前平举",
+      "type": "action",
+      "params": {
+        "action_id": "raise_both_forward"
+      },
+      "difficulty": 1,
+      "category": "上肢动作"
+    },
+    {
+      "task_id": "action_look_left",
+      "name": "头向左转",
+      "type": "action",
+      "params": {
+        "action_id": "look_left"
+      },
+      "difficulty": 1,
+      "category": "头部动作"
+    },
+    {
+      "task_id": "action_look_right",
+      "name": "头向右转",
+      "type": "action",
+      "params": {
+        "action_id": "look_right"
+      },
+      "difficulty": 1,
+      "category": "头部动作"
+    },
+    {
+      "task_id": "action_head_deep_tilt_left",
+      "name": "头靠左肩",
+      "type": "action",
+      "params": {
+        "action_id": "head_deep_tilt_left"
+      },
+      "difficulty": 1,
+      "category": "头部动作"
+    },
+    {
+      "task_id": "action_head_deep_tilt_right",
+      "name": "头靠右肩",
+      "type": "action",
+      "params": {
+        "action_id": "head_deep_tilt_right"
+      },
+      "difficulty": 1,
+      "category": "头部动作"
+    },
+    {
+      "task_id": "action_lean_left",
+      "name": "身体左倾",
+      "type": "action",
+      "params": {
+        "action_id": "lean_left"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_lean_right",
+      "name": "身体右倾",
+      "type": "action",
+      "params": {
+        "action_id": "lean_right"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_twist_left",
+      "name": "上身左转",
+      "type": "action",
+      "params": {
+        "action_id": "twist_left"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_twist_right",
+      "name": "上身右转",
+      "type": "action",
+      "params": {
+        "action_id": "twist_right"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_deep_squat",
+      "name": "深蹲",
+      "type": "action",
+      "params": {
+        "action_id": "deep_squat"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_sit_floor",
+      "name": "坐地",
+      "type": "action",
+      "params": {
+        "action_id": "sit_floor"
+      },
+      "difficulty": 1,
+      "category": "身体动作"
+    },
+    {
+      "task_id": "action_kick_right",
+      "name": "右前踢",
+      "type": "action",
+      "params": {
+        "action_id": "kick_right"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_side_raise_right_leg",
+      "name": "右侧抬腿",
+      "type": "action",
+      "params": {
+        "action_id": "side_raise_right_leg"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_heel_butt_right",
+      "name": "右后勾腿",
+      "type": "action",
+      "params": {
+        "action_id": "heel_butt_right"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_lunge_right",
+      "name": "右弓步",
+      "type": "action",
+      "params": {
+        "action_id": "lunge_right"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_one_leg_right",
+      "name": "右单脚站",
+      "type": "action",
+      "params": {
+        "action_id": "one_leg_right"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_kick_left",
+      "name": "左前踢",
+      "type": "action",
+      "params": {
+        "action_id": "kick_left"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_side_raise_left_leg",
+      "name": "左侧抬腿",
+      "type": "action",
+      "params": {
+        "action_id": "side_raise_left_leg"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_heel_butt_left",
+      "name": "左后勾腿",
+      "type": "action",
+      "params": {
+        "action_id": "heel_butt_left"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_lunge_left",
+      "name": "左弓步",
+      "type": "action",
+      "params": {
+        "action_id": "lunge_left"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_one_leg_left",
+      "name": "左单脚站",
+      "type": "action",
+      "params": {
+        "action_id": "one_leg_left"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_tip_toe",
+      "name": "踮脚尖",
+      "type": "action",
+      "params": {
+        "action_id": "tip_toe"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_legs_cross",
+      "name": "双腿交叉",
+      "type": "action",
+      "params": {
+        "action_id": "legs_cross"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_wide_stance",
+      "name": "马步",
+      "type": "action",
+      "params": {
+        "action_id": "wide_stance"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_kneel_left",
+      "name": "左膝跪地",
+      "type": "action",
+      "params": {
+        "action_id": "kneel_left"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_kneel_right",
+      "name": "右膝跪地",
+      "type": "action",
+      "params": {
+        "action_id": "kneel_right"
+      },
+      "difficulty": 1,
+      "category": "下肢动作"
+    },
+    {
+      "task_id": "action_touch_nose_left",
+      "name": "摸鼻（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_nose_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_forehead_left",
+      "name": "摸额头（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_forehead_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_mouth_left",
+      "name": "摸嘴（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_mouth_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_ear_left",
+      "name": "摸耳（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_ear_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_hip_left",
+      "name": "摸髋（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_hip_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_shin_left",
+      "name": "摸小腿（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_shin_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_ankle_left",
+      "name": "摸脚踝（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_ankle_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_toe_left",
+      "name": "摸脚尖（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_toe_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_elbow_left",
+      "name": "摸肘（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_elbow_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_nose_right",
+      "name": "摸鼻（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_nose_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_forehead_right",
+      "name": "摸额头（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_forehead_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_mouth_right",
+      "name": "摸嘴（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_mouth_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_ear_right",
+      "name": "摸耳（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_ear_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_hip_right",
+      "name": "摸髋（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_hip_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_shin_right",
+      "name": "摸小腿（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_shin_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_ankle_right",
+      "name": "摸脚踝（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_ankle_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_toe_right",
+      "name": "摸脚尖（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_toe_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_elbow_right",
+      "name": "摸肘（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_elbow_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_neck_left",
+      "name": "摸脖子（左手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_neck_left"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_touch_neck_right",
+      "name": "摸脖子（右手）",
+      "type": "action",
+      "params": {
+        "action_id": "touch_neck_right"
+      },
+      "difficulty": 1,
+      "category": "触碰动作"
+    },
+    {
+      "task_id": "action_raise_right_lift_left",
+      "name": "举右手抬左腿",
+      "type": "action",
+      "params": {
+        "action_id": "raise_right_lift_left"
+      },
+      "difficulty": 1,
+      "category": "组合动作"
+    },
+    {
+      "task_id": "action_raise_left_lift_right",
+      "name": "举左手抬右腿",
+      "type": "action",
+      "params": {
+        "action_id": "raise_left_lift_right"
+      },
+      "difficulty": 1,
+      "category": "组合动作"
+    },
+    {
+      "task_id": "action_raise_right_lift_right",
+      "name": "举右手抬右腿",
+      "type": "action",
+      "params": {
+        "action_id": "raise_right_lift_right"
+      },
+      "difficulty": 1,
+      "category": "组合动作"
+    },
+    {
+      "task_id": "action_raise_left_lift_left",
+      "name": "举左手抬左腿",
+      "type": "action",
+      "params": {
+        "action_id": "raise_left_lift_left"
+      },
+      "difficulty": 1,
+      "category": "组合动作"
+    },
+    {
+      "task_id": "action_t_pose_one_leg",
+      "name": "单脚站T字",
+      "type": "action",
+      "params": {
+        "action_id": "t_pose_one_leg"
+      },
+      "difficulty": 1,
+      "category": "组合动作"
+    },
+    {
+      "task_id": "action_y_pose_one_leg",
+      "name": "单脚站Y字",
+      "type": "action",
+      "params": {
+        "action_id": "y_pose_one_leg"
+      },
+      "difficulty": 1,
+      "category": "组合动作"
+    },
+    {
+      "task_id": "pick_place_bottle",
+      "name": "拿起瓶子放入目标",
+      "type": "skill",
+      "params": {
+        "target": "bottle",
+        "containers": [
+          "book",
+          "cup",
+          "remote",
+          "bowl",
+          "clock",
+          "keyboard"
+        ]
+      },
+      "difficulty": 2,
+      "category": "生活技能"
+    },
+    {
+      "task_id": "pick_place_cup",
+      "name": "拿起杯子放到目标",
+      "type": "skill",
+      "params": {
+        "target": "cup",
+        "containers": [
+          "book",
+          "bowl",
+          "remote",
+          "clock",
+          "keyboard"
+        ]
+      },
+      "difficulty": 2,
+      "category": "生活技能"
+    }
+  ]
+}

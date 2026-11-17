@@ -1,0 +1,13 @@
+# 星伴AI 项目基础依赖（第一阶段：环境检查与摄像头姿态识别准备）
+# 全部为 CPU 可运行方案，不依赖 NVIDIA CUDA
+numpy>=2.5
+opencv-python>=5.0
+mediapipe>=1.2
+# 第三阶段：目标物品检测（ultralytics 会连带安装 CPU 版 PyTorch）
+ultralytics>=8.4
+# 第四阶段：训练管理后端与家长平台
+fastapi>=0.115
+uvicorn>=0.30
+# 网页系统改造新增：数据库 ORM 与接口数据校验
+sqlalchemy>=2.0
+pydantic>=2.0

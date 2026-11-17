@@ -1,0 +1,62 @@
+<template>
+  <div>
+    <h2 class="page-title">档案与系统设置</h2>
+
+    <el-card shadow="never" class="block">
+      <template #header>匿名儿童档案</template>
+      <el-table :data="children" size="small">
+        <el-table-column prop="id" label="#" width="60" />
+        <el-table-column prop="nickname" label="昵称" />
+        <el-table-column prop="birth_year" label="出生年份" width="100" />
+        <el-table-column prop="gender" label="性别" width="80" />
+      </el-table>
+      <div v-if="!children.length" class="muted">暂无档案</div>
+    </el-card>
+
+    <el-card shadow="never" class="block">
+      <template #header>训练任务列表（{{ tasks.length }} 项）</template>
+      <el-table :data="tasks" size="small" max-height="360">
+        <el-table-column prop="name" label="任务名称" />
+        <el-table-column label="类型" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.type === 'action' ? '' : 'warning'">
+              {{ row.type === 'action' ? '动作' : '生活技能' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="category" label="分类" width="110" />
+        <el-table-column prop="difficulty" label="难度" width="70" />
+      </el-table>
+    </el-card>
+
+    <el-card shadow="never" class="block">
+      <template #header>使用说明</template>
+      <ul class="tips">
+        <li>电脑运行后端后，手机/平板在同一 Wi-Fi 下，用浏览器打开「电脑局域网 IP:8000」访问。</li>
+        <li>电脑局域网 IP 可在命令行输入 <code>ipconfig</code> 查看「IPv4 地址」。</li>
+        <li>数据保存在本机 <code>data/xingban.db</code>，多设备共享同一份数据。</li>
+        <li>AI 识别结果仅作辅助参考，不能替代专业康复人员判断。</li>
+      </ul>
+    </el-card>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import api from '../api'
+
+const children = ref([])
+const tasks = ref([])
+
+onMounted(async () => {
+  const [c, t] = await Promise.all([api.children(), api.tasks()])
+  children.value = c.data.children
+  tasks.value = t.data.tasks
+})
+</script>
+
+<style scoped>
+.muted { color: #bbb; text-align: center; padding: 20px; }
+.tips { padding-left: 20px; line-height: 2; color: #555; }
+.tips code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
+</style>

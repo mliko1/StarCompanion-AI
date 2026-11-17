@@ -1,0 +1,3455 @@
+{
+  "_说明": "星伴AI 动作库（声明式规则，共 100 个动作）。加动作=加一条 JSON，不改代码。特征：dy(高低)/dx(左右)/dist(距离)/ratio(距离比)/angle(角度)。点引用：整数索引、mid:i:j、hc:L/hc:R、chest、belly。字段：rules(条件组，组内AND组间OR)、excludes(命中压制)、priority(优先级)、base(静止姿态)。",
+  "actions": [
+    {
+      "id": "raise_right",
+      "name": "举右手",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.06
+          }
+        ]
+      ]
+    },
+    {
+      "id": "raise_left",
+      "name": "举左手",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.06
+          }
+        ]
+      ]
+    },
+    {
+      "id": "both_hands_up",
+      "name": "双手上举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": ">",
+            "val": 140
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": ">",
+            "val": 140
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_left",
+        "raise_right"
+      ]
+    },
+    {
+      "id": "clap",
+      "name": "拍手",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "ratio",
+            "a": "hc:L",
+            "b": "hc:R",
+            "c": 11,
+            "d": 12,
+            "op": "<",
+            "val": 0.55
+          },
+          {
+            "f": "dy",
+            "a": "hc:L",
+            "b": "chest",
+            "op": "<",
+            "val": 0
+          },
+          {
+            "f": "dy",
+            "a": "hc:L",
+            "b": "chest",
+            "op": ">",
+            "val": -0.12
+          },
+          {
+            "f": "dy",
+            "a": "hc:R",
+            "b": "chest",
+            "op": "<",
+            "val": 0
+          },
+          {
+            "f": "dy",
+            "a": "hc:R",
+            "b": "chest",
+            "op": ">",
+            "val": -0.12
+          }
+        ]
+      ]
+    },
+    {
+      "id": "wave_right",
+      "name": "挥右手",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.15
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.12
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_right"
+      ]
+    },
+    {
+      "id": "wave_left",
+      "name": "挥左手",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.15
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.12
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_left"
+      ]
+    },
+    {
+      "id": "cross_arms",
+      "name": "双手交叉",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 16,
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.05
+          }
+        ]
+      ],
+      "priority": 25,
+      "excludes": [
+        "touch_belly",
+        "touch_elbow_left",
+        "touch_elbow_right"
+      ]
+    },
+    {
+      "id": "hands_on_hips",
+      "name": "叉腰",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 23,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 24,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 23,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 24,
+            "op": "<",
+            "val": 0.06
+          }
+        ]
+      ],
+      "priority": 25,
+      "excludes": [
+        "hand_on_hip_left",
+        "hand_on_hip_right",
+        "touch_hip_left",
+        "touch_hip_right"
+      ]
+    },
+    {
+      "id": "hands_on_head",
+      "name": "抱头",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 0,
+            "op": "<",
+            "val": 0.25
+          },
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": 0.25
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 0,
+            "op": "<",
+            "val": 0.05
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": 0.05
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 140
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 140
+          }
+        ]
+      ],
+      "priority": 25,
+      "excludes": [
+        "touch_head",
+        "raise_left",
+        "raise_right",
+        "touch_nose_left",
+        "touch_nose_right",
+        "touch_forehead_left",
+        "touch_forehead_right",
+        "touch_mouth_left",
+        "touch_mouth_right",
+        "touch_ear_left",
+        "touch_ear_right"
+      ]
+    },
+    {
+      "id": "stretch_chest",
+      "name": "扩胸",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "ratio",
+            "a": 13,
+            "b": 14,
+            "c": 11,
+            "d": 12,
+            "op": ">",
+            "val": 1.4
+          },
+          {
+            "f": "dy",
+            "a": 13,
+            "b": 11,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 13,
+            "b": 11,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dy",
+            "a": 14,
+            "b": 12,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 14,
+            "b": 12,
+            "op": "<",
+            "val": 0.08
+          }
+        ]
+      ]
+    },
+    {
+      "id": "nod_down",
+      "name": "低头",
+      "category": "头部",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 0,
+            "b": "chest",
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 11,
+            "b": 23,
+            "op": "<",
+            "val": -0.15
+          }
+        ]
+      ]
+    },
+    {
+      "id": "head_up",
+      "name": "抬头",
+      "category": "头部",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 0,
+            "b": "chest",
+            "op": "<",
+            "val": -0.25
+          }
+        ]
+      ]
+    },
+    {
+      "id": "head_tilt_left",
+      "name": "歪头左",
+      "category": "头部",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 7,
+            "b": 8,
+            "op": ">",
+            "val": 0.03
+          }
+        ]
+      ]
+    },
+    {
+      "id": "head_tilt_right",
+      "name": "歪头右",
+      "category": "头部",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 7,
+            "b": 8,
+            "op": "<",
+            "val": -0.03
+          }
+        ]
+      ]
+    },
+    {
+      "id": "squat",
+      "name": "蹲下",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 23,
+            "b": 25,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 24,
+            "b": 26,
+            "op": ">",
+            "val": -0.08
+          }
+        ]
+      ]
+    },
+    {
+      "id": "stand_up",
+      "name": "站直",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 23,
+            "b": 25,
+            "op": "<",
+            "val": -0.18
+          },
+          {
+            "f": "dy",
+            "a": 24,
+            "b": 26,
+            "op": "<",
+            "val": -0.18
+          },
+          {
+            "f": "dy",
+            "a": 11,
+            "b": 23,
+            "op": "<",
+            "val": 0
+          }
+        ]
+      ],
+      "base": true
+    },
+    {
+      "id": "lift_left_leg",
+      "name": "抬左腿",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 28,
+            "op": "<",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 26,
+            "op": "<",
+            "val": -0.05
+          }
+        ]
+      ]
+    },
+    {
+      "id": "lift_right_leg",
+      "name": "抬右腿",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 27,
+            "op": "<",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 25,
+            "op": "<",
+            "val": -0.05
+          }
+        ]
+      ]
+    },
+    {
+      "id": "bend_forward",
+      "name": "弯腰",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 11,
+            "b": 23,
+            "op": ">",
+            "val": -0.12
+          }
+        ]
+      ]
+    },
+    {
+      "id": "touch_head",
+      "name": "摸头",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 0,
+            "op": "<",
+            "val": 0.15
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 0,
+            "op": "<",
+            "val": -0.09
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ],
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": 0.15
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": -0.09
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 5,
+      "excludes": [
+        "raise_right",
+        "raise_left"
+      ]
+    },
+    {
+      "id": "touch_shoulder",
+      "name": "摸肩",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 12,
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 12,
+            "op": "<",
+            "val": 0.04
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ],
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 11,
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 11,
+            "op": "<",
+            "val": 0.04
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ]
+    },
+    {
+      "id": "touch_knee",
+      "name": "摸膝盖",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 25,
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 25,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 23,
+            "op": ">",
+            "val": 0.1
+          }
+        ],
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 26,
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 26,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 24,
+            "op": ">",
+            "val": 0.1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "touch_belly",
+      "name": "拍肚子",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": "belly",
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": "chest",
+            "op": ">",
+            "val": 0.04
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ],
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": "belly",
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": "chest",
+            "op": ">",
+            "val": 0.04
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ]
+    },
+    {
+      "id": "t_pose",
+      "name": "双臂侧平举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.18
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.18
+          }
+        ]
+      ],
+      "priority": 12,
+      "excludes": [
+        "raise_left",
+        "raise_right",
+        "arm_side_left",
+        "arm_side_right"
+      ]
+    },
+    {
+      "id": "y_pose",
+      "name": "双臂斜上举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.15
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.15
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.12
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.12
+          }
+        ]
+      ],
+      "priority": 12,
+      "excludes": [
+        "raise_left",
+        "raise_right",
+        "both_hands_up",
+        "arm_diag_up_left",
+        "arm_diag_up_right"
+      ]
+    },
+    {
+      "id": "arm_side_right",
+      "name": "右臂侧平举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.18
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_right",
+        "wave_right"
+      ]
+    },
+    {
+      "id": "arm_forward_right",
+      "name": "右臂前平举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.1
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": ">",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_right"
+      ]
+    },
+    {
+      "id": "salute_right",
+      "name": "敬礼右手",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": -0.03
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "touch_head",
+        "touch_forehead_left",
+        "touch_forehead_right"
+      ]
+    },
+    {
+      "id": "hand_on_chest_right",
+      "name": "右手捂胸",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 16,
+            "op": ">",
+            "val": 0.22
+          },
+          {
+            "f": "dist",
+            "a": 16,
+            "b": "chest",
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": "chest",
+            "op": ">",
+            "val": -0.05
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "touch_chest_left",
+        "touch_chest_right"
+      ]
+    },
+    {
+      "id": "hand_on_hip_right",
+      "name": "右手叉腰",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 24,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 24,
+            "op": "<",
+            "val": 0.06
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "touch_hip_left",
+        "touch_hip_right"
+      ]
+    },
+    {
+      "id": "elbow_out_right",
+      "name": "右肘外展",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 14,
+            "b": 12,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 14,
+            "b": 12,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "dx",
+            "a": 14,
+            "b": 12,
+            "op": "<",
+            "val": -0.1
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": 0.02
+          }
+        ]
+      ]
+    },
+    {
+      "id": "arm_diag_up_right",
+      "name": "右臂斜上举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.15
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.08
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_right",
+        "wave_right"
+      ]
+    },
+    {
+      "id": "arm_half_right",
+      "name": "右臂半举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.15
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.1
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": ">",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_right"
+      ]
+    },
+    {
+      "id": "arm_side_left",
+      "name": "左臂侧平举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.18
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_left",
+        "wave_left"
+      ]
+    },
+    {
+      "id": "arm_forward_left",
+      "name": "左臂前平举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.1
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": ">",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_left"
+      ]
+    },
+    {
+      "id": "salute_left",
+      "name": "敬礼左手",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 0,
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 0,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 0,
+            "op": ">",
+            "val": 0.03
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "touch_head",
+        "touch_forehead_left",
+        "touch_forehead_right"
+      ]
+    },
+    {
+      "id": "hand_on_chest_left",
+      "name": "左手捂胸",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 16,
+            "op": ">",
+            "val": 0.22
+          },
+          {
+            "f": "dist",
+            "a": 15,
+            "b": "chest",
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": "chest",
+            "op": ">",
+            "val": -0.05
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "touch_chest_left",
+        "touch_chest_right"
+      ]
+    },
+    {
+      "id": "hand_on_hip_left",
+      "name": "左手叉腰",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 23,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 23,
+            "op": "<",
+            "val": 0.06
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "touch_hip_left",
+        "touch_hip_right"
+      ]
+    },
+    {
+      "id": "elbow_out_left",
+      "name": "左肘外展",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 13,
+            "b": 11,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 13,
+            "b": 11,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "dx",
+            "a": 13,
+            "b": 11,
+            "op": ">",
+            "val": 0.1
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.02
+          }
+        ]
+      ]
+    },
+    {
+      "id": "arm_diag_up_left",
+      "name": "左臂斜上举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.15
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.08
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_left",
+        "wave_left"
+      ]
+    },
+    {
+      "id": "arm_half_left",
+      "name": "左臂半举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.15
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.1
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": ">",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "raise_left"
+      ]
+    },
+    {
+      "id": "hug_self",
+      "name": "拥抱自己",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 12,
+            "op": "<",
+            "val": 0.15
+          },
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 11,
+            "op": "<",
+            "val": 0.15
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 12,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 11,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "touch_shoulder",
+        "cross_arms"
+      ]
+    },
+    {
+      "id": "hands_pray",
+      "name": "双手合十",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "ratio",
+            "a": "hc:L",
+            "b": "hc:R",
+            "c": 11,
+            "d": 12,
+            "op": "<",
+            "val": 0.55
+          },
+          {
+            "f": "dy",
+            "a": "hc:L",
+            "b": "chest",
+            "op": ">",
+            "val": 0.0
+          },
+          {
+            "f": "dy",
+            "a": "hc:L",
+            "b": "chest",
+            "op": "<",
+            "val": 0.15
+          },
+          {
+            "f": "dy",
+            "a": "hc:R",
+            "b": "chest",
+            "op": ">",
+            "val": 0.0
+          },
+          {
+            "f": "dy",
+            "a": "hc:R",
+            "b": "chest",
+            "op": "<",
+            "val": 0.15
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "clap"
+      ]
+    },
+    {
+      "id": "hands_behind",
+      "name": "双手背后",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 16,
+            "op": "<",
+            "val": 0.15
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 23,
+            "op": ">",
+            "val": 0.0
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 23,
+            "op": "<",
+            "val": 0.12
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "cross_arms",
+        "touch_belly"
+      ]
+    },
+    {
+      "id": "shrug",
+      "name": "耸肩",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 11,
+            "b": 23,
+            "op": "<",
+            "val": -0.3
+          },
+          {
+            "f": "dy",
+            "a": 12,
+            "b": 24,
+            "op": "<",
+            "val": -0.3
+          },
+          {
+            "f": "dy",
+            "a": 11,
+            "b": 7,
+            "op": "<",
+            "val": 0.2
+          },
+          {
+            "f": "dy",
+            "a": 12,
+            "b": 8,
+            "op": "<",
+            "val": 0.2
+          }
+        ]
+      ]
+    },
+    {
+      "id": "arms_down",
+      "name": "双臂下垂",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": 0.06
+          }
+        ]
+      ],
+      "base": true
+    },
+    {
+      "id": "wave_both",
+      "name": "双手挥动",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.12
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.12
+          }
+        ]
+      ],
+      "priority": 12,
+      "excludes": [
+        "raise_left",
+        "raise_right",
+        "wave_left",
+        "wave_right"
+      ]
+    },
+    {
+      "id": "clap_overhead",
+      "name": "头顶拍手",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "ratio",
+            "a": "hc:L",
+            "b": "hc:R",
+            "c": 11,
+            "d": 12,
+            "op": "<",
+            "val": 0.5
+          },
+          {
+            "f": "dy",
+            "a": "hc:L",
+            "b": 0,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": "hc:R",
+            "b": 0,
+            "op": "<",
+            "val": -0.06
+          }
+        ]
+      ],
+      "priority": 12,
+      "excludes": [
+        "clap",
+        "both_hands_up",
+        "hands_on_head"
+      ]
+    },
+    {
+      "id": "raise_both_forward",
+      "name": "双手前平举",
+      "category": "上肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 16,
+            "op": ">",
+            "val": 0.18
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.1
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "look_left",
+      "name": "头向左转",
+      "category": "头部",
+      "rules": [
+        [
+          {
+            "f": "dx",
+            "a": 0,
+            "b": "chest",
+            "op": ">",
+            "val": 0.08
+          }
+        ]
+      ]
+    },
+    {
+      "id": "look_right",
+      "name": "头向右转",
+      "category": "头部",
+      "rules": [
+        [
+          {
+            "f": "dx",
+            "a": 0,
+            "b": "chest",
+            "op": "<",
+            "val": -0.08
+          }
+        ]
+      ]
+    },
+    {
+      "id": "head_deep_tilt_left",
+      "name": "头靠左肩",
+      "category": "头部",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 7,
+            "b": 8,
+            "op": ">",
+            "val": 0.1
+          },
+          {
+            "f": "dy",
+            "a": 7,
+            "b": 11,
+            "op": ">",
+            "val": -0.15
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "head_tilt_left"
+      ]
+    },
+    {
+      "id": "head_deep_tilt_right",
+      "name": "头靠右肩",
+      "category": "头部",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 7,
+            "b": 8,
+            "op": "<",
+            "val": -0.1
+          },
+          {
+            "f": "dy",
+            "a": 8,
+            "b": 12,
+            "op": ">",
+            "val": -0.15
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "head_tilt_right"
+      ]
+    },
+    {
+      "id": "lean_left",
+      "name": "身体左倾",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dx",
+            "a": 11,
+            "b": 23,
+            "op": ">",
+            "val": 0.14
+          }
+        ]
+      ]
+    },
+    {
+      "id": "lean_right",
+      "name": "身体右倾",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dx",
+            "a": 11,
+            "b": 23,
+            "op": "<",
+            "val": -0.14
+          }
+        ]
+      ]
+    },
+    {
+      "id": "twist_left",
+      "name": "上身左转",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dx",
+            "a": 11,
+            "b": 23,
+            "op": ">",
+            "val": 0.12
+          },
+          {
+            "f": "dx",
+            "a": 11,
+            "b": 12,
+            "op": ">",
+            "val": 0.14
+          }
+        ]
+      ]
+    },
+    {
+      "id": "twist_right",
+      "name": "上身右转",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dx",
+            "a": 11,
+            "b": 23,
+            "op": "<",
+            "val": -0.12
+          },
+          {
+            "f": "dx",
+            "a": 11,
+            "b": 12,
+            "op": "<",
+            "val": 0.06
+          }
+        ]
+      ]
+    },
+    {
+      "id": "deep_squat",
+      "name": "深蹲",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 23,
+            "b": 25,
+            "op": ">",
+            "val": -0.02
+          },
+          {
+            "f": "dy",
+            "a": 24,
+            "b": 26,
+            "op": ">",
+            "val": -0.02
+          },
+          {
+            "f": "dy",
+            "a": 23,
+            "b": 27,
+            "op": "<",
+            "val": 0.2
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "squat"
+      ]
+    },
+    {
+      "id": "sit_floor",
+      "name": "坐地",
+      "category": "身体",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 23,
+            "b": 25,
+            "op": ">",
+            "val": 0.0
+          },
+          {
+            "f": "dy",
+            "a": 23,
+            "b": 27,
+            "op": "<",
+            "val": 0.28
+          },
+          {
+            "f": "dy",
+            "a": 11,
+            "b": 23,
+            "op": "<",
+            "val": -0.05
+          }
+        ]
+      ],
+      "priority": 10,
+      "excludes": [
+        "squat",
+        "deep_squat",
+        "stand_up"
+      ]
+    },
+    {
+      "id": "kick_right",
+      "name": "右前踢",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 24,
+            "op": ">",
+            "val": 0.02
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 26,
+            "op": "<",
+            "val": -0.02
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 27,
+            "op": "<",
+            "val": -0.1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "side_raise_right_leg",
+      "name": "右侧抬腿",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 27,
+            "op": "<",
+            "val": -0.1
+          },
+          {
+            "f": "dx",
+            "a": 28,
+            "b": 24,
+            "op": "<",
+            "val": -0.1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "heel_butt_right",
+      "name": "右后勾腿",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 24,
+            "op": "<",
+            "val": -0.05
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 26,
+            "op": "<",
+            "val": 0.0
+          },
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 24,
+            "op": "<",
+            "val": 0.02
+          }
+        ]
+      ]
+    },
+    {
+      "id": "lunge_right",
+      "name": "右弓步",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 28,
+            "op": "<",
+            "val": 0.25
+          },
+          {
+            "f": "dx",
+            "a": 26,
+            "b": 24,
+            "op": "<",
+            "val": -0.05
+          },
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 24,
+            "op": ">",
+            "val": 0.05
+          }
+        ]
+      ]
+    },
+    {
+      "id": "one_leg_right",
+      "name": "右单脚站",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 27,
+            "op": "<",
+            "val": -0.2
+          },
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 25,
+            "op": "<",
+            "val": -0.1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "kick_left",
+      "name": "左前踢",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 23,
+            "op": ">",
+            "val": 0.02
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 25,
+            "op": "<",
+            "val": -0.02
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 28,
+            "op": "<",
+            "val": -0.1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "side_raise_left_leg",
+      "name": "左侧抬腿",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 28,
+            "op": "<",
+            "val": -0.1
+          },
+          {
+            "f": "dx",
+            "a": 27,
+            "b": 23,
+            "op": ">",
+            "val": 0.1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "heel_butt_left",
+      "name": "左后勾腿",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 23,
+            "op": "<",
+            "val": -0.05
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 25,
+            "op": "<",
+            "val": 0.0
+          },
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 23,
+            "op": "<",
+            "val": 0.02
+          }
+        ]
+      ]
+    },
+    {
+      "id": "lunge_left",
+      "name": "左弓步",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 27,
+            "op": "<",
+            "val": 0.25
+          },
+          {
+            "f": "dx",
+            "a": 25,
+            "b": 23,
+            "op": ">",
+            "val": 0.05
+          },
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 23,
+            "op": ">",
+            "val": 0.05
+          }
+        ]
+      ]
+    },
+    {
+      "id": "one_leg_left",
+      "name": "左单脚站",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 28,
+            "op": "<",
+            "val": -0.2
+          },
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 26,
+            "op": "<",
+            "val": -0.1
+          }
+        ]
+      ]
+    },
+    {
+      "id": "tip_toe",
+      "name": "踮脚尖",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 29,
+            "b": 31,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 30,
+            "b": 32,
+            "op": "<",
+            "val": -0.06
+          }
+        ]
+      ]
+    },
+    {
+      "id": "legs_cross",
+      "name": "双腿交叉",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 25,
+            "b": 26,
+            "op": "<",
+            "val": 0.07
+          },
+          {
+            "f": "dist",
+            "a": 27,
+            "b": 28,
+            "op": "<",
+            "val": 0.07
+          }
+        ]
+      ]
+    },
+    {
+      "id": "wide_stance",
+      "name": "马步",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dx",
+            "a": 27,
+            "b": 28,
+            "op": ">",
+            "val": 0.35
+          },
+          {
+            "f": "dy",
+            "a": 23,
+            "b": 25,
+            "op": ">",
+            "val": -0.12
+          }
+        ]
+      ]
+    },
+    {
+      "id": "kneel_left",
+      "name": "左膝跪地",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 27,
+            "op": "<",
+            "val": 0.15
+          },
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 23,
+            "op": "<",
+            "val": 0.2
+          },
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 28,
+            "op": ">",
+            "val": 0.15
+          }
+        ]
+      ]
+    },
+    {
+      "id": "kneel_right",
+      "name": "右膝跪地",
+      "category": "下肢",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 28,
+            "op": "<",
+            "val": 0.15
+          },
+          {
+            "f": "dy",
+            "a": 26,
+            "b": 24,
+            "op": "<",
+            "val": 0.2
+          },
+          {
+            "f": "dy",
+            "a": 25,
+            "b": 27,
+            "op": ">",
+            "val": 0.15
+          }
+        ]
+      ]
+    },
+    {
+      "id": "touch_nose_left",
+      "name": "摸鼻（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 0,
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 0,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 0,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_head"
+      ]
+    },
+    {
+      "id": "touch_forehead_left",
+      "name": "摸额头（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": "mid:2:5",
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": "mid:2:5",
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": "mid:2:5",
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_head"
+      ]
+    },
+    {
+      "id": "touch_mouth_left",
+      "name": "摸嘴（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": "mid:9:10",
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": "mid:9:10",
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": "mid:9:10",
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_head"
+      ]
+    },
+    {
+      "id": "touch_ear_left",
+      "name": "摸耳（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 7,
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 7,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 7,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_head"
+      ]
+    },
+    {
+      "id": "touch_hip_left",
+      "name": "摸髋（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 23,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 23,
+            "op": "<",
+            "val": 0.06
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_shin_left",
+      "name": "摸小腿（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": "mid:25:27",
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": "mid:25:27",
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 25,
+            "op": ">",
+            "val": 0.1
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_ankle_left",
+      "name": "摸脚踝（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 27,
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 27,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 25,
+            "op": ">",
+            "val": 0.1
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_toe_left",
+      "name": "摸脚尖（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 31,
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 31,
+            "op": ">",
+            "val": -0.04
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 25,
+            "op": ">",
+            "val": 0.1
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_elbow_left",
+      "name": "摸肘（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 14,
+            "op": "<",
+            "val": 0.14
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 14,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_shoulder"
+      ]
+    },
+    {
+      "id": "touch_nose_right",
+      "name": "摸鼻（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 0,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 0,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_head"
+      ]
+    },
+    {
+      "id": "touch_forehead_right",
+      "name": "摸额头（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": "mid:2:5",
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": "mid:2:5",
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": "mid:2:5",
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_head"
+      ]
+    },
+    {
+      "id": "touch_mouth_right",
+      "name": "摸嘴（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": "mid:9:10",
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": "mid:9:10",
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": "mid:9:10",
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_head"
+      ]
+    },
+    {
+      "id": "touch_ear_right",
+      "name": "摸耳（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 8,
+            "op": "<",
+            "val": 0.12
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 8,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 8,
+            "op": "<",
+            "val": 0.06
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_head"
+      ]
+    },
+    {
+      "id": "touch_hip_right",
+      "name": "摸髋（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 24,
+            "op": "<",
+            "val": 0.1
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 24,
+            "op": "<",
+            "val": 0.06
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_shin_right",
+      "name": "摸小腿（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": "mid:26:28",
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": "mid:26:28",
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 26,
+            "op": ">",
+            "val": 0.1
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_ankle_right",
+      "name": "摸脚踝（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 28,
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 28,
+            "op": ">",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 26,
+            "op": ">",
+            "val": 0.1
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_toe_right",
+      "name": "摸脚尖（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 32,
+            "op": "<",
+            "val": 0.16
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 32,
+            "op": ">",
+            "val": -0.04
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 26,
+            "op": ">",
+            "val": 0.1
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_elbow_right",
+      "name": "摸肘（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 16,
+            "b": 13,
+            "op": "<",
+            "val": 0.14
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 13,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30,
+      "excludes": [
+        "touch_shoulder"
+      ]
+    },
+    {
+      "id": "touch_neck_left",
+      "name": "摸脖子（左手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 16,
+            "op": ">",
+            "val": 0.22
+          },
+          {
+            "f": "dist",
+            "a": 15,
+            "b": "mid:11:12",
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": "mid:11:12",
+            "op": "<",
+            "val": 0.04
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "touch_neck_right",
+      "name": "摸脖子（右手）",
+      "category": "触碰",
+      "rules": [
+        [
+          {
+            "f": "dist",
+            "a": 15,
+            "b": 16,
+            "op": ">",
+            "val": 0.22
+          },
+          {
+            "f": "dist",
+            "a": 16,
+            "b": "mid:11:12",
+            "op": "<",
+            "val": 0.13
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": "mid:11:12",
+            "op": "<",
+            "val": 0.04
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": "<",
+            "val": 130
+          }
+        ]
+      ],
+      "priority": 30
+    },
+    {
+      "id": "raise_right_lift_left",
+      "name": "举右手抬左腿",
+      "category": "组合",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 28,
+            "op": "<",
+            "val": -0.08
+          }
+        ]
+      ],
+      "priority": 15,
+      "excludes": [
+        "raise_right",
+        "lift_left_leg"
+      ]
+    },
+    {
+      "id": "raise_left_lift_right",
+      "name": "举左手抬右腿",
+      "category": "组合",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 27,
+            "op": "<",
+            "val": -0.08
+          }
+        ]
+      ],
+      "priority": 15,
+      "excludes": [
+        "raise_left",
+        "lift_right_leg"
+      ]
+    },
+    {
+      "id": "raise_right_lift_right",
+      "name": "举右手抬右腿",
+      "category": "组合",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 27,
+            "op": "<",
+            "val": -0.08
+          }
+        ]
+      ],
+      "priority": 15,
+      "excludes": [
+        "raise_right",
+        "lift_right_leg"
+      ]
+    },
+    {
+      "id": "raise_left_lift_left",
+      "name": "举左手抬左腿",
+      "category": "组合",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.06
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 28,
+            "op": "<",
+            "val": -0.08
+          }
+        ]
+      ],
+      "priority": 15,
+      "excludes": [
+        "raise_left",
+        "lift_left_leg"
+      ]
+    },
+    {
+      "id": "t_pose_one_leg",
+      "name": "单脚站T字",
+      "category": "组合",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": ">",
+            "val": -0.08
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": 0.08
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.18
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.18
+          },
+          {
+            "f": "dy",
+            "a": 27,
+            "b": 28,
+            "op": "<",
+            "val": -0.2
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "t_pose",
+        "one_leg_left"
+      ]
+    },
+    {
+      "id": "y_pose_one_leg",
+      "name": "单脚站Y字",
+      "category": "组合",
+      "rules": [
+        [
+          {
+            "f": "dy",
+            "a": 15,
+            "b": 11,
+            "op": "<",
+            "val": -0.15
+          },
+          {
+            "f": "dy",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.15
+          },
+          {
+            "f": "dx",
+            "a": 15,
+            "b": 11,
+            "op": ">",
+            "val": 0.12
+          },
+          {
+            "f": "dx",
+            "a": 16,
+            "b": 12,
+            "op": "<",
+            "val": -0.12
+          },
+          {
+            "f": "dy",
+            "a": 28,
+            "b": 27,
+            "op": "<",
+            "val": -0.2
+          }
+        ]
+      ],
+      "priority": 20,
+      "excludes": [
+        "y_pose",
+        "one_leg_right"
+      ]
+    }
+  ]
+}
