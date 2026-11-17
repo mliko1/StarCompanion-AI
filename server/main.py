@@ -11,7 +11,6 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from api import camera as camera_api
@@ -22,7 +21,6 @@ from database.db import init_db
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIST = os.path.join(ROOT, "frontend", "dist")
-WEB_LEGACY = os.path.join(ROOT, "web")
 
 app = FastAPI(title="星伴AI 训练管理后端", version="2.0.0")
 
@@ -88,12 +86,11 @@ def _child_to_dict(c):
 
 
 # ---------- 前端挂载 ----------
-# 优先 Vue3 构建产物；未构建时回退到旧静态看板（web/index.html.bak 时代）
+# 前端构建产物（frontend/dist）随仓库提供，直接挂载
 if os.path.isdir(FRONTEND_DIST):
     app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
 else:
     @app.get("/")
     def index():
-        return FileResponse(os.path.join(WEB_LEGACY, "index.html"))
-
-    app.mount("/", StaticFiles(directory=WEB_LEGACY, html=True), name="web")
+        return ("<h2>前端未构建</h2><p>请进入 frontend 目录执行 "
+                "<code>npm install &amp;&amp; npm run build</code></p>")

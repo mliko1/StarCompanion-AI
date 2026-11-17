@@ -19,9 +19,16 @@ logs/
 *.bak
 *.old
 
+# ===== 文档 / 系统垃圾（不入库）=====
+*.docx
+*.lnk
+
+# ===== 旧版 / 冗余（已被新版替代）=====
+server/db.py
+web/
+
 # ===== 前端 =====
 frontend/node_modules/
-frontend/dist/
 
 # ===== 模型文件 =====
 # yolo11n.pt 首次运行由 ultralytics 自动下载

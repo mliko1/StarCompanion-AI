@@ -79,6 +79,10 @@ python -m server.run
 
 手机/平板（同一 Wi-Fi）打开 `http://电脑局域网IP:8000`（`ipconfig` 查看 IPv4 地址）。
 
+> 前端已构建（`frontend/dist/` 随仓库提供），**无需安装 Node.js 即可直接使用**。
+> 只有当你修改了前端代码（`frontend/src/`）时，才需要进入 `frontend/` 目录执行
+> `npm install && npm run build` 重新构建。
+
 ### 5. 直接运行视觉脚本
 
 ```powershell
