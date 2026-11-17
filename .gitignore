@@ -29,6 +29,9 @@ frontend/dist/
 vision/models/yolo11n.pt
 vision/models/pose_landmarker_lite.task
 
+# ===== Word/Office 临时锁文件 =====
+~$*
+
 # ===== IDE / 系统 =====
 .idea/
 .vscode/
