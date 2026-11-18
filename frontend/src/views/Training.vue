@@ -3,6 +3,24 @@
     <h2 class="page-title">训练操作</h2>
 
     <el-card shadow="never" class="block">
+      <template #header>今日推荐训练计划（根据历史完成情况自动生成）</template>
+      <div v-if="plan.length" class="plan-list">
+        <div v-for="(p, i) in plan" :key="p.task_id" class="plan-item" @click="taskId = p.task_id">
+          <span class="plan-no" :class="{ picked: taskId === p.task_id }">{{ i + 1 }}</span>
+          <div class="plan-info">
+            <div class="plan-name">
+              {{ p.name }}
+              <el-tag size="small" :type="kindType(p.kind)" effect="light">{{ kindText(p.kind) }}</el-tag>
+              <span class="plan-rate">完成率 {{ (p.rate * 100).toFixed(0) }}%</span>
+            </div>
+            <div class="plan-reason">{{ p.reason }}</div>
+          </div>
+        </div>
+      </div>
+      <div v-else class="muted">暂无训练记录，点击下方「开始训练」即可开始第一次训练</div>
+    </el-card>
+
+    <el-card shadow="never" class="block">
       <template #header>选择训练任务</template>
       <el-form label-width="90px" label-position="left">
         <el-form-item label="训练任务">
@@ -81,10 +99,16 @@ import api from '../api'
 
 const tasks = ref([])
 const scenes = ref([])
+const plan = ref([])
 const taskId = ref('')
 const sceneId = ref('')
 const promptLevel = ref(0)
 const status = ref(null)
+
+const KIND_TEXT = { strengthen: '需加强', consolidate: '巩固', new: '新动作', review: '复习' }
+const KIND_TYPE = { strengthen: 'danger', consolidate: 'warning', new: 'primary', review: 'info' }
+function kindText(k) { return KIND_TEXT[k] || k }
+function kindType(k) { return KIND_TYPE[k] || 'info' }
 const promptLabels = ['独立完成', '视觉提示', '语音提示', '动作示范', '家长协助']
 const streamUrl = '/api/camera/stream'
 
@@ -107,10 +131,13 @@ const stateType = computed(() =>
 function stepName(key) { return STEP_MAP[key] || key || '—' }
 
 async function loadBase() {
-  const [t, s] = await Promise.all([api.tasks(), api.scenes()])
+  const [t, s, p] = await Promise.all([api.tasks(), api.scenes(), api.plan()])
   tasks.value = t.data.tasks
   scenes.value = s.data.scenes
+  plan.value = p.data.plan || []
   if (scenes.value.length) sceneId.value = scenes.value[0].id
+  // 默认选中推荐方案第一个动作（免手动选任务）
+  if (plan.value.length && !taskId.value) taskId.value = plan.value[0].task_id
 }
 async function refreshStatus() {
   try {
@@ -140,11 +167,42 @@ setInterval(refreshStatus, 2000)
 </script>
 
 <style scoped>
+.plan-list { display: flex; flex-direction: column; gap: 10px; }
+.plan-item {
+  display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px;
+  border-radius: 12px; background: #f7f8fc; cursor: pointer;
+  transition: all 0.15s ease; border: 1px solid transparent;
+}
+.plan-item:hover { border-color: #d6defc; background: #f2f5ff; }
+.plan-no {
+  width: 28px; height: 28px; border-radius: 50%; background: #e6e9f5; color: #8a91a6;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 14px; flex-shrink: 0;
+}
+.plan-no.picked { background: var(--primary-grad); color: #fff; }
+.plan-info { flex: 1; }
+.plan-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.plan-rate { color: #8a91a6; font-size: 12px; font-weight: 400; }
+.plan-reason { color: #8a91a6; font-size: 13px; margin-top: 3px; }
 .video-wrap { display: flex; justify-content: center; }
-.video { width: 100%; max-width: 640px; border-radius: 8px; background: #000; }
-.placeholder { width: 100%; max-width: 640px; height: 360px; display: flex; align-items: center; justify-content: center; background: #f0f0f0; color: #999; }
-.steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-.step-chip { padding: 4px 10px; border-radius: 14px; background: #f0f0f0; color: #999; font-size: 13px; }
-.step-chip.done { background: #e8f5e9; color: #67c23a; }
-.step-chip.current { background: #e6f0ff; color: #409eff; font-weight: 600; }
+.video {
+  width: 100%; max-width: 640px; border-radius: 14px; background: #000;
+  box-shadow: 0 10px 30px rgba(20, 30, 60, 0.18);
+}
+.placeholder {
+  width: 100%; max-width: 640px; height: 360px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #eef1f8 0%, #e6e9f5 100%);
+  color: #a3a9bd; border-radius: 14px; font-size: 15px;
+}
+.steps { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
+.step-chip {
+  padding: 8px 16px; border-radius: 20px; background: #f1f3f8; color: #9aa1b3;
+  font-size: 13px; font-weight: 500; transition: all 0.2s ease;
+}
+.step-chip.done { background: linear-gradient(135deg, #e7f7e4, #d3f0cf); color: #3e9b3e; }
+.step-chip.current {
+  background: var(--primary-grad); color: #fff; font-weight: 600;
+  box-shadow: 0 4px 12px rgba(91, 124, 250, 0.35);
+}
 </style>

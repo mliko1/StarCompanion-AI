@@ -7,6 +7,7 @@
 - 原 server/db.py（原生 sqlite3）已备份为 server/db.py.bak，不再使用。
 """
 
+import datetime
 import os
 
 from sqlalchemy import create_engine
@@ -34,9 +35,30 @@ def get_db():
 
 
 def init_db():
-    """建表（只创建不存在的表），随后写入种子数据。"""
+    """建表（只创建不存在的表），清理僵尸会话，随后写入种子数据。"""
     from database import models  # noqa: F401  确保所有模型已注册到 Base
     from database import seed     # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _cleanup_stale_sessions()
     seed.seed_all()
+
+
+def _cleanup_stale_sessions():
+    """后端重启时，把遗留的 running/paused 会话标记为 aborted。
+
+    这些"僵尸"会话是上次进程被直接关闭、或异常退出时留下的，
+    若不清理，会导致报告页一直显示"训练中"、且统计口径混乱。"""
+    db = SessionLocal()
+    try:
+        from database import models
+        n = (db.query(models.TrainingSession)
+             .filter(models.TrainingSession.status.in_(["running", "paused"]))
+             .update({"status": "aborted",
+                      "end_time": datetime.datetime.now()},
+                     synchronize_session=False))
+        db.commit()
+        if n:
+            print(f"[init] 已清理遗留会话 {n} 条（running/paused -> aborted）")
+    finally:
+        db.close()

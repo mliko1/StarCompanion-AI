@@ -56,7 +56,9 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.muted { color: #bbb; text-align: center; padding: 20px; }
-.tips { padding-left: 20px; line-height: 2; color: #555; }
-.tips code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; }
+.tips { padding-left: 20px; line-height: 2.1; color: #5b6480; }
+.tips code {
+  background: #eef1f8; padding: 2px 8px; border-radius: 6px;
+  color: #4f6ef2; font-family: Consolas, monospace; font-size: 13px;
+}
 </style>

@@ -4,7 +4,8 @@
 
     <el-row :gutter="16">
       <el-col :span="12" :md="6" v-for="card in cards" :key="card.label">
-        <el-card shadow="hover" class="stat-card block">
+        <el-card shadow="hover" class="stat-card block" :style="{ '--card-tint': card.tint }">
+          <div class="stat-icon">{{ card.icon }}</div>
           <div class="stat-label">{{ card.label }}</div>
           <div class="stat-value">{{ card.value }}</div>
         </el-card>
@@ -14,10 +15,10 @@
     <el-card shadow="never" class="block">
       <template #header>当前训练状态</template>
       <template v-if="status">
-        <p>状态：<el-tag :type="stateType">{{ stateText }}</el-tag></p>
-        <p v-if="status.task_name">当前任务：{{ status.task_name }}</p>
-        <p>摄像头：{{ status.camera && status.camera.running ? '运行中' : '未启动' }}</p>
-        <p v-if="status.camera && status.camera.person_detected">检测到人物</p>
+        <div class="status-line"><span class="k">状态</span><el-tag :type="stateType" effect="light" round>{{ stateText }}</el-tag></div>
+        <div class="status-line" v-if="status.task_name"><span class="k">当前任务</span><span class="v">{{ status.task_name }}</span></div>
+        <div class="status-line"><span class="k">摄像头</span><span class="v">{{ status.camera && status.camera.running ? '运行中' : '未启动' }}</span></div>
+        <div class="status-line" v-if="status.camera && status.camera.person_detected"><span class="k">人物</span><span class="v">已检测到</span></div>
       </template>
       <template v-else>加载中…</template>
     </el-card>
@@ -59,10 +60,10 @@ const suggestions = ref([])
 const cards = computed(() => {
   if (!stats.value) return []
   return [
-    { label: '累计训练次数', value: stats.value.total },
-    { label: '任务完成率', value: (stats.value.completion_rate * 100).toFixed(0) + '%' },
-    { label: '提示依赖指数 PDI', value: stats.value.pdi.toFixed(2) },
-    { label: '独立完成率', value: (stats.value.independent_rate * 100).toFixed(0) + '%' },
+    { label: '累计训练次数', value: stats.value.total, icon: '🏋️', tint: 'rgba(91,124,250,0.13)' },
+    { label: '任务完成率', value: (stats.value.completion_rate * 100).toFixed(0) + '%', icon: '✅', tint: 'rgba(103,194,58,0.14)' },
+    { label: '提示依赖指数 PDI', value: stats.value.pdi.toFixed(2), icon: '📉', tint: 'rgba(139,92,246,0.13)' },
+    { label: '独立完成率', value: (stats.value.independent_rate * 100).toFixed(0) + '%', icon: '🌟', tint: 'rgba(230,162,60,0.15)' },
   ]
 })
 
@@ -85,8 +86,12 @@ setInterval(load, 5000)
 </script>
 
 <style scoped>
-.stat-label { color: #999; font-size: 13px; }
-.stat-value { font-size: 28px; font-weight: 700; margin-top: 6px; }
-.advice { padding: 10px 14px; margin-bottom: 8px; background: #f0f7ff; border-left: 4px solid #409eff; border-radius: 6px; font-size: 14px; }
-.muted { color: #bbb; font-size: 13px; }
+.status-line { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.status-line .k { color: #8a91a6; width: 70px; font-size: 13px; }
+.status-line .v { color: #2b2f3e; font-size: 14px; font-weight: 500; }
+.advice {
+  padding: 12px 16px; margin-bottom: 10px; border-radius: 12px;
+  background: linear-gradient(135deg, #f2f5ff 0%, #f6f1ff 100%);
+  border-left: 4px solid var(--primary); font-size: 14px; color: #3a4055;
+}
 </style>

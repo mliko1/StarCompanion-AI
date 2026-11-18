@@ -29,10 +29,15 @@ from behavior_sequence import BehaviorFSM  # noqa: E402
 from interaction_detector import InteractionDetector  # noqa: E402
 
 from database import crud  # noqa: E402
+from services import tts  # noqa: E402
 from services.camera_service import camera  # noqa: E402
 from services.vision_events import make_event, events  # noqa: E402
 
 DEFAULT_HOLD_SEC = 2.0
+
+# 瞬时动作：用「原始关键点」识别（平滑会抹掉拍手这种瞬间合掌的峰值）
+# 持续动作（举手等）：仍用「平滑关键点」，配合 hold_sec 防抖更稳
+INSTANT_ACTIONS = {"clap", "clap_overhead", "wave_left", "wave_right", "wave_both"}
 
 STEP_NAMES_CN = {
     "find_toy": "寻找玩具",
@@ -40,6 +45,14 @@ STEP_NAMES_CN = {
     "pick_toy": "拿起玩具",
     "move_toy": "移动玩具",
     "place_toy": "放入收纳盒",
+}
+
+# 步骤 -> 下一步（用于语音播报下一步指令）
+_NEXT_STEP = {
+    "find_toy": "approach_toy",
+    "approach_toy": "pick_toy",
+    "pick_toy": "move_toy",
+    "move_toy": "place_toy",
 }
 
 
@@ -75,12 +88,24 @@ class TrainingService:
         self.current_step = None
         self.current_interaction = "uncertain"
         self.completed_steps = []
+        # 方案模式（连续训练多个动作）
+        self.plan_mode = False
+        self.plan_tasks = []
+        self.plan_index = 0
+        self.plan_total = 0
+        self.plan_results = []
+        self.plan_child_id = None
+        self.plan_scene_id = None
+        self.plan_prompt_level = 0
+        self.plan_hold_sec = DEFAULT_HOLD_SEC
 
     # ---------- 对外接口 ----------
     def start(self, task_id, child_id=None, scene_id=None, prompt_level=0,
               hold_sec=DEFAULT_HOLD_SEC):
         if self.state == "running":
             return {"ok": False, "msg": "已有训练在进行中，请先结束"}
+
+        self.plan_mode = False
 
         task = crud.get_task_by_task_id(task_id)
         if task is None:
@@ -134,8 +159,119 @@ class TrainingService:
         target = self._run_skill if task.type == "skill" else self._run_action
         self.thread = threading.Thread(target=target, daemon=True)
         self.thread.start()
+
+        # 语音播报指令（异步，不阻塞）
+        if task.type == "skill":
+            tts.speak("训练开始，请找到目标玩具")
+        else:
+            tts.speak(f"训练开始，请做动作：{task.name}")
+
         return {"ok": True, "msg": self.message, "session_id": self.session_id,
                 "session_code": session_code}
+
+    def start_plan(self, task_ids, child_id=None, scene_id=None, prompt_level=0,
+                   hold_sec=DEFAULT_HOLD_SEC):
+        """方案模式：依次连续训练多个动作，练完一个自动进入下一个。"""
+        if self.state == "running":
+            return {"ok": False, "msg": "已有训练在进行中，请先结束"}
+
+        tasks = []
+        for tid in task_ids:
+            t = crud.get_task_by_task_id(tid)
+            if t is None:
+                return {"ok": False, "msg": f"任务 {tid} 不存在"}
+            tasks.append(t)
+        if not tasks:
+            return {"ok": False, "msg": "训练方案为空"}
+
+        cam_ok = camera.start()
+        if not cam_ok["ok"]:
+            return {"ok": False, "msg": cam_ok["msg"]}
+
+        children = crud.list_children()
+        if child_id is None and children:
+            child_id = children[0].id
+        if scene_id is None:
+            scenes = crud.list_scenes()
+            if scenes:
+                scene_id = scenes[0].id
+
+        self.plan_mode = True
+        self.plan_tasks = [t.task_id for t in tasks]
+        self.plan_total = len(tasks)
+        self.plan_index = 0
+        self.plan_results = []
+        self.plan_child_id = child_id
+        self.plan_scene_id = scene_id
+        self.plan_prompt_level = prompt_level
+        self.plan_hold_sec = hold_sec
+        self.state = "running"
+        self.message = f"开始训练方案（共 {len(tasks)} 个动作）"
+        self._stop_flag.clear()
+        self._pause_flag.clear()
+
+        self.thread = threading.Thread(target=self._run_plan, daemon=True)
+        self.thread.start()
+
+        tts.speak(f"今天共 {len(tasks)} 个训练动作，我们开始吧")
+        return {"ok": True, "msg": self.message, "plan_total": len(tasks)}
+
+    def _run_plan(self):
+        for i, tid in enumerate(self.plan_tasks):
+            if self._stop_flag.is_set():
+                break
+            self.plan_index = i
+            task = crud.get_task_by_task_id(tid)
+            if task is None:
+                self.plan_results.append({"task_id": tid, "completed": False})
+                continue
+            self._setup_single(task, self.plan_child_id, self.plan_scene_id,
+                               self.plan_prompt_level, self.plan_hold_sec)
+            tts.speak(f"第 {i + 1} 个动作，{task.name}")
+            # 单个动作：练到完成（或中途被停止）
+            ok = self._run_action()
+            self.plan_results.append({"task_id": tid, "completed": ok})
+        self._finish_plan()
+
+    def _finish_plan(self, completed=True):
+        done_count = sum(1 for r in self.plan_results if r["completed"])
+        self.state = "done" if completed else "aborted"
+        self.message = f"训练方案完成：{done_count}/{len(self.plan_results)} 个动作完成"
+        events.add(make_event("plan_finished", self.message, time.time(),
+                              details={"results": self.plan_results}))
+        tts.speak(f"今天的训练结束啦，完成了 {done_count} 个动作，真棒！")
+        self.plan_mode = False
+
+    def _setup_single(self, task, child_id, scene_id, prompt_level, hold_sec):
+        """为单个动作创建 session 并初始化状态（单任务模式与方案模式共用）。"""
+        session_code = uuid.uuid4().hex[:16]
+        session = crud.create_session(session_code, child_id, task.id,
+                                      scene_id, prompt_level)
+        self.session_id = session.id
+        self.session_code = session_code
+        self.task = task
+        self.task_params = task.params or {}
+        self.hold_sec = hold_sec
+        self.message = f"开始训练：{task.name}"
+        self.detected_now = False
+        self.hold_start = None
+        self.skill = None
+        self.current_step = None
+        self.completed_steps = []
+
+        if task.type == "skill":
+            target = self.task_params.get("target", "bottle")
+            containers = self.task_params.get(
+                "containers", ["book", "cup", "remote", "bowl"])
+            self.skill = {
+                "fsm": BehaviorFSM(),
+                "inter": None,
+                "target": target,
+                "containers": containers,
+                "started": False,
+                "prev_completed": set(),
+                "prev_uncertain": 0,
+            }
 
     def pause(self):
         if self.state != "running":
@@ -164,6 +300,9 @@ class TrainingService:
         if self.thread is not None:
             self.thread.join(timeout=1.0)
             self.thread = None
+        if self.plan_mode:
+            self._finish_plan(completed=False)
+            return {"ok": True, "msg": "训练方案已结束"}
         if self.task and self.task.type == "skill":
             self._finish_skill(completed=False)
         else:
@@ -185,26 +324,34 @@ class TrainingService:
             "current_interaction": self.current_interaction,
             "completed_steps": self.completed_steps,
             "message": self.message,
+            "plan_mode": self.plan_mode,
+            "plan_index": self.plan_index,
+            "plan_total": self.plan_total,
+            "plan_tasks": self.plan_tasks,
+            "plan_results": self.plan_results,
             "events": events.recent(20),
             "camera": camera.status(),
         }
 
     # ---------- 动作类任务 ----------
     def _run_action(self):
+        """训练单个动作直到完成或停止，返回是否完成（供方案模式循环调用）。"""
         target_action = self.task_params.get("action_id")
+        instant = target_action in INSTANT_ACTIONS
         while not self._stop_flag.is_set():
             if self._pause_flag.is_set():
                 time.sleep(0.1)
                 continue
-            smoothed, _raw = camera.get_landmarks()
+            smoothed, raw = camera.get_landmarks()
             now = time.time()
-            if not smoothed:
+            lms = raw if instant else smoothed
+            if not lms:
                 self.detected_now = False
                 self.hold_start = None
                 time.sleep(0.05)
                 continue
             try:
-                hits = action_engine.detect_actions(smoothed)
+                hits = action_engine.detect_actions(lms)
             except Exception:
                 hits = []
             self.current_action = hits[0] if hits else None
@@ -215,11 +362,12 @@ class TrainingService:
                     self.hold_start = now
                 if now - self.hold_start >= self.hold_sec:
                     self._finish(completed=True)
-                    return
+                    return True
             else:
                 self.detected_now = False
                 self.hold_start = None
             time.sleep(0.05)
+        return False
 
     # ---------- 生活技能类（多步骤）任务 ----------
     def _run_skill(self):
@@ -293,6 +441,13 @@ class TrainingService:
             events.add(make_event(
                 "step_completed", STEP_NAMES_CN.get(step, step), now,
                 task_step=step, confidence=1.0, session_id=self.session_id))
+            # 语音播报：完成当前步骤 + 提示下一步
+            cn = STEP_NAMES_CN.get(step, step)
+            nxt = STEP_NAMES_CN.get(_NEXT_STEP.get(step))
+            if nxt:
+                tts.speak(f"很好，{cn}完成，接下来{nxt}")
+            else:
+                tts.speak(f"很好，{cn}完成")
         skill["prev_completed"] = cur
 
         unc = st.get("uncertain_events") or []
@@ -314,14 +469,18 @@ class TrainingService:
 
     # ---------- 结束 ----------
     def _finish(self, completed):
-        self.state = "done" if completed else "aborted"
+        action_state = "done" if completed else "aborted"
+        if self.plan_mode:
+            self.state = "running"  # 方案模式：单个动作结束，方案仍在进行
+        else:
+            self.state = action_state
         if self.session_id:
             s = crud.get_session(self.session_id)
             elapsed = 0.0
             if s and s.start_time:
                 elapsed = (datetime.datetime.now() - s.start_time).total_seconds()
             crud.update_session(
-                self.session_id, status=self.state, completed=completed,
+                self.session_id, status=action_state, completed=completed,
                 end_time=datetime.datetime.now(), elapsed_sec=round(elapsed, 1))
             crud.add_action_record(
                 self.session_id, step_name=self.task.name if self.task else None,
@@ -331,6 +490,8 @@ class TrainingService:
                               session_id=self.session_id,
                               details={"completed": completed}))
         self.message = "训练完成" if completed else "训练已结束"
+        if completed:
+            tts.speak("太棒了，任务完成！")
 
     def _finish_skill(self, completed):
         self.state = "done" if completed else "aborted"
@@ -352,6 +513,8 @@ class TrainingService:
             session_id=self.session_id,
             details={"completed": completed, "steps": self.completed_steps}))
         self.message = "训练完成" if completed else "训练已结束"
+        if completed:
+            tts.speak("太棒了，任务完成！")
 
 
 # 全局单例

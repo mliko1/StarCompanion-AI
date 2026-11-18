@@ -45,3 +45,5 @@ vision/models/pose_landmarker_lite.task
 *.code-workspace
 Thumbs.db
 .DS_Store
+
+_backend_*.log

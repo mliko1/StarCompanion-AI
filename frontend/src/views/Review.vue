@@ -53,6 +53,9 @@ onMounted(load)
 </script>
 
 <style scoped>
-.hint { color: #999; font-size: 13px; margin-bottom: 12px; }
-.muted { color: #bbb; text-align: center; padding: 20px; }
+.hint {
+  color: #5b6480; font-size: 13px; margin-bottom: 16px;
+  padding: 12px 16px; border-radius: 12px;
+  background: #f2f5ff; border: 1px solid #e3e9ff;
+}
 </style>

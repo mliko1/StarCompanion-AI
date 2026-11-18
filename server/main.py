@@ -61,6 +61,13 @@ def list_children():
     return {"children": [_child_to_dict(c) for c in crud.list_children()]}
 
 
+@app.get("/api/plan")
+def get_plan(child_id: int | None = None):
+    """个性化训练方案推荐（基于该儿童历史完成情况）。"""
+    from core.plan import build_plan
+    return build_plan(child_id)
+
+
 # ---------- 注册子路由 ----------
 app.include_router(training_api.router)
 app.include_router(camera_api.router)

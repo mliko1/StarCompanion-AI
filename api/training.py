@@ -17,10 +17,25 @@ class StartRequest(BaseModel):
     hold_sec: float = 2.0
 
 
+class StartPlanRequest(BaseModel):
+    task_ids: list[str]
+    child_id: int | None = None
+    scene_id: int | None = None
+    prompt_level: int = 0
+    hold_sec: float = 2.0
+
+
 @router.post("/start")
 def start(req: StartRequest):
     return training.start(req.task_id, req.child_id, req.scene_id,
                           req.prompt_level, req.hold_sec)
+
+
+@router.post("/start_plan")
+def start_plan(req: StartPlanRequest):
+    """方案模式：依次连续训练多个动作（练完一个自动进入下一个）。"""
+    return training.start_plan(req.task_ids, req.child_id, req.scene_id,
+                               req.prompt_level, req.hold_sec)
 
 
 @router.post("/pause")

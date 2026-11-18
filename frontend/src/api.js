@@ -8,6 +8,7 @@ export default {
   tasks: () => http.get('/api/tasks'),
   scenes: () => http.get('/api/scenes'),
   children: () => http.get('/api/children'),
+  plan: () => http.get('/api/plan'),
   // 训练控制
   startTraining: (payload) => http.post('/api/training/start', payload),
   pauseTraining: () => http.post('/api/training/pause'),
