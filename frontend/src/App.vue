@@ -141,4 +141,17 @@ body {
   .tab-item .icon { font-size: 21px; }
   .tab-item.active { color: var(--primary); font-weight: 600; }
 }
+
+/* ---------- 表格统一美化 ---------- */
+.el-table { font-size: 14px; color: #3a4055; border-radius: 12px; overflow: hidden; }
+.el-table th.el-table__cell {
+  background: #f6f8fc !important;
+  color: #4a5270 !important;
+  font-weight: 600;
+  height: 46px;
+}
+.el-table td.el-table__cell { padding: 13px 0; }
+.el-table__body tr:hover > td.el-table__cell { background: #f2f5ff !important; }
+.el-table::before { display: none; }
+
 </style>
