@@ -3,6 +3,14 @@
     <h2 class="page-title">档案与系统设置</h2>
 
     <el-card shadow="never" class="block">
+      <template #header>账号</template>
+      <div class="account">
+        <span class="muted">当前账号：{{ account || '—' }}</span>
+        <el-button size="small" round @click="onLogout">退出登录</el-button>
+      </div>
+    </el-card>
+
+    <el-card shadow="never" class="block">
       <template #header>匿名儿童档案</template>
       <el-table :data="children" size="small">
         <el-table-column prop="id" label="#" width="60" />
@@ -43,10 +51,19 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../api'
+import { currentUser, logout } from '../auth'
 
+const router = useRouter()
 const children = ref([])
 const tasks = ref([])
+const account = currentUser()
+
+function onLogout() {
+  logout()
+  router.replace('/login')
+}
 
 onMounted(async () => {
   const [c, t] = await Promise.all([api.children(), api.tasks()])
@@ -56,9 +73,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.account { display: flex; align-items: center; justify-content: space-between; }
 .tips { padding-left: 20px; line-height: 2.1; color: #5b6480; }
 .tips code {
   background: #eef1f8; padding: 2px 8px; border-radius: 6px;
-  color: #4f6ef2; font-family: Consolas, monospace; font-size: 13px;
+  color: #0b63ce; font-family: Consolas, monospace; font-size: 13px;
 }
 </style>
