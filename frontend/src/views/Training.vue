@@ -175,11 +175,17 @@ setInterval(refreshStatus, 2000)
 }
 .plan-item:hover { border-color: #d6defc; background: #f2f5ff; }
 .plan-no {
-  width: 28px; height: 28px; border-radius: 50%; background: #e6e9f5; color: #8a91a6;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #f2f5fa; color: #7c8ca6;
+  border: 1px solid #e2e9f4;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 14px; flex-shrink: 0;
+  font-weight: 600; font-size: 12px; flex-shrink: 0;
+  transition: all 0.18s ease;
 }
-.plan-no.picked { background: var(--primary-grad); color: #fff; }
+.plan-no.picked {
+  background: #eaf2fd; color: var(--primary);
+  border-color: rgba(11, 99, 206, 0.32);
+}
 .plan-info { flex: 1; }
 .plan-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .plan-rate { color: #8a91a6; font-size: 12px; font-weight: 400; }
@@ -203,6 +209,6 @@ setInterval(refreshStatus, 2000)
 .step-chip.done { background: linear-gradient(135deg, #e7f7e4, #d3f0cf); color: #3e9b3e; }
 .step-chip.current {
   background: var(--primary-grad); color: #fff; font-weight: 600;
-  box-shadow: 0 4px 12px rgba(91, 124, 250, 0.35);
+  box-shadow: 0 4px 12px rgba(11, 99, 206, 0.28);
 }
 </style>
