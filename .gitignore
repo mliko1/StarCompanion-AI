@@ -48,3 +48,10 @@ Thumbs.db
 .DS_Store
 
 _backend_*.log
+
+# ===== 早期原型/旧报告（已从仓库移除，本地保留备查）=====
+vision/pose_camera.py
+vision/raise_hand.py
+vision/clap_hands.py
+docs/phase3_implementation_report.md
+docs/phase3_test_report.md
