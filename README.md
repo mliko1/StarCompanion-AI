@@ -22,7 +22,10 @@
   方案进度实时高亮、结束弹出完成数/用时/PDI/独立完成率
 - **网页系统**：训练控制（开始/暂停/恢复/结束）、报告统计、人工确认、档案管理
 - **个体化辅助决策**：提示依赖指数（PDI）、独立完成率、可解释规则建议
-- **规范数据库 11 张表**：AI 识别结果与人工确认分开存储，可追溯
+- **个体化适应**：每个孩子×每个任务逐步建立个人参考范围（惯用手/幅度/时长/速度容差），
+  首次训练仅记录待确认、多次训练 + 人工审核才收敛，不确定结果交家长确认；
+  已接入动作判定（惯用手镜像、幅度/速度阈值缩放、步骤超时缩放）
+- **规范数据库 12 张表**：AI 识别结果与人工确认分开存储，可追溯
 - **多设备访问**：电脑运行算法与摄像头，手机/平板通过局域网浏览器操作
 
 ## 系统截图
@@ -70,14 +73,15 @@ AI 识别结果与人工确认分开存储，可对不确定的识别结果进�
 ├── vision/                 计算机视觉算法（姿态/动作/交互/行为FSM/物品检测）
 │   └── 自训练流水线：collect_dataset → label_dataset → train_custom_yolo → evaluate_model
 ├── services/               业务服务层（摄像头/训练调度/方案模式/报告/语音TTS/视觉事件）
-├── api/                    接口路由（训练/方案训练/摄像头/报告）
-├── database/               SQLAlchemy 模型 + CRUD + 种子数据（11 张表）
+├── api/                    接口路由（训练/方案训练/摄像头/报告/个体化）
+├── database/               SQLAlchemy 模型 + CRUD + 种子数据（12 张表）
 ├── server/                 FastAPI 入口（main.py / run.py）
 ├── frontend/               Vue3 前端工程
-├── core/                   decision.py（PDI 辅助决策）+ plan.py（个性化方案推荐）
+├── core/                   decision.py（PDI 辅助决策）+ plan.py（方案推荐）+
+│                           personalization.py（个体化参考范围引擎）
 ├── hardware/               ESP32 交互盒串口控制器 + 固件（需实物联调）
 ├── desktop/                PySide6 儿童训练端（推荐计划/连续训练/语音/摄像头画面）
-├── tests/                  单元测试
+├── tests/                  单元测试（动作/FSM/决策/个体化/阈值缩放/标定）
 ├── data/                   任务库（tasks.json/actions.json）
 └── docs/                   项目文档
 ```
@@ -179,14 +183,20 @@ python tests/test_behavior_fsm.py
 python tests/test_dtw.py
 python tests/test_decision.py
 python tests/test_action_engine.py
+python tests/test_personalization.py       # 个体化参考范围引擎
+python tests/test_adaptive_thresholds.py   # 幅度/速度阈值缩放
+python tests/test_calibration.py           # 惯用手接入 + 标定脚本
 ```
 
-## 数据库设计（11 张表）
+> `test_calibration.py` 依赖 `cv2`/`ultralytics`，请在项目 `.venv` 下运行：
+> `.\.venv\Scripts\python.exe tests\test_calibration.py`
+
+## 数据库设计（12 张表）
 
 `child_profile`（儿童档案）/ `task_definition`（任务定义）/ `task_step`（任务步骤）/
 `scene_info`（场景）/ `training_session`（训练记录）/ `step_event`（步骤事件）/
 `prompt_record`（提示等级）/ `vision_result`（AI 识别原始结果）/ `manual_review`（人工确认）/
-`analysis_result`（分析结果）/ `model_version`（模型版本）
+`analysis_result`（分析结果）/ `model_version`（模型版本）/ `personal_profile`（个体化档案）
 
 核心原则：**AI 识别结果与人工确认分开存储**，人工修正只新增、不覆盖原始模型结果。
 
@@ -243,6 +253,10 @@ PDI（提示依赖指数）= Σpᵢ / (4N)，独立完成率 = 独立完成任�
 
 ## 更新日志
 
+- **v2.1**（2026-11）：个体化适应——每个孩子×每个任务逐步建立个人参考范围
+  （惯用手/幅度/时长/速度），首次训练仅记录待确认、多次训练 + 人工审核才收敛；
+  已接入动作判定（惯用手镜像、幅度/速度阈值缩放、步骤超时缩放、惯用手优先追踪），
+  新增 `personal_profile` 表、个体化接口与真机标定采集脚本
 - **v2.0**（2026-11）：网页系统改造——FastAPI 后端 + SQLite 规范数据库（11 表）+
   Vue3 前端 + 多步骤任务理解（把物品放入收纳盒）+ 统一视觉事件格式 + 硬件/桌面端框架
 - **v1.0**：视觉算法阶段——姿态识别、举手/拍手、人-物交互识别、行为 FSM、动作库

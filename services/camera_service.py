@@ -10,6 +10,7 @@
 """
 
 import os
+import sys
 import threading
 import time
 
@@ -19,6 +20,11 @@ from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python import vision
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+VISION_DIR = os.path.join(ROOT, "vision")
+if VISION_DIR not in sys.path:
+    sys.path.insert(0, VISION_DIR)
+
+from pose_utils import LandmarkSmoother  # noqa: E402
 # 注意：MediaPipe 底层无法打开含中文的绝对路径，必须用相对路径
 # （配合 start() 里的 os.chdir(ROOT) 保证相对路径正确解析）。
 MODEL_PATH = os.path.join("vision", "models", "pose_landmarker_full.task")
@@ -47,6 +53,8 @@ class CameraService:
         self.raw_frame = None         # BGR 原始帧（识别用，保证左右手正确）
         self.smoothed_lms = None      # 平滑关键点（持续动作用）
         self.raw_lms = None           # 原始关键点（拍手等快动作用）
+        # 复用公共平滑器：置信度不足(visibility<=0.3)或出画的关键点锁定不更新
+        self.smoother = LandmarkSmoother(alpha=SMOOTH_ALPHA, min_visibility=0.3)
         self.landmarker = None
         self.fps = 0.0
         self.error = None
@@ -57,18 +65,7 @@ class CameraService:
         if not result.pose_landmarks:
             return
         self.raw_lms = result.pose_landmarks[0]
-        new_lms = self.raw_lms
-        if self.smoothed_lms is None or len(self.smoothed_lms) != len(new_lms):
-            self.smoothed_lms = list(new_lms)
-        else:
-            for i, lm in enumerate(new_lms):
-                prev = self.smoothed_lms[i]
-                self.smoothed_lms[i] = type(lm)(
-                    x=SMOOTH_ALPHA * lm.x + (1 - SMOOTH_ALPHA) * prev.x,
-                    y=SMOOTH_ALPHA * lm.y + (1 - SMOOTH_ALPHA) * prev.y,
-                    z=SMOOTH_ALPHA * lm.z + (1 - SMOOTH_ALPHA) * prev.z,
-                    visibility=lm.visibility,
-                )
+        self.smoothed_lms = self.smoother.update(self.raw_lms)
 
     def start(self):
         if self.running:
@@ -175,6 +172,7 @@ class CameraService:
         self.raw_frame = None
         self.smoothed_lms = None
         self.raw_lms = None
+        self.smoother.reset()
         return {"ok": True, "msg": "摄像头已释放"}
 
 

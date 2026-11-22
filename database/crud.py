@@ -5,6 +5,7 @@ import datetime
 
 from sqlalchemy import func
 
+from core.personalization import PROFILE_PARAMS
 from database import models
 from database.db import SessionLocal
 
@@ -236,5 +237,87 @@ def list_model_versions():
     db = SessionLocal()
     try:
         return db.query(models.ModelVersion).order_by(models.ModelVersion.id).all()
+    finally:
+        db.close()
+
+
+# ---------- 个体化档案（个体化适应） ----------
+def upsert_personal_profile(child_id, task_id, param_key, param_kind="numeric",
+                            samples=None, reviews=None, status="pending",
+                            confidence=0.0):
+    """新增或更新某个孩子×任务×参数的个体化档案。
+
+    task_id 为 task_definition.id（Integer）；纯逻辑 PersonalProfile 里的
+    字符串 task_id 由服务层通过 get_task_by_task_id 转换为主键 id 后传入。
+    """
+    db = SessionLocal()
+    try:
+        r = (db.query(models.PersonalProfile)
+             .filter_by(child_id=child_id, task_id=task_id, param_key=param_key)
+             .first())
+        if r is None:
+            r = models.PersonalProfile(child_id=child_id, task_id=task_id,
+                                       param_key=param_key)
+            db.add(r)
+        r.param_kind = param_kind
+        r.samples = list(samples or [])
+        r.reviews = list(reviews or [])
+        r.status = status
+        r.confidence = confidence
+        db.commit()
+        db.refresh(r)
+        return r
+    finally:
+        db.close()
+
+
+def get_personal_profile(child_id, task_id, param_key):
+    db = SessionLocal()
+    try:
+        return (db.query(models.PersonalProfile)
+                .filter_by(child_id=child_id, task_id=task_id,
+                           param_key=param_key)
+                .first())
+    finally:
+        db.close()
+
+
+def list_personal_profiles(child_id=None, task_id=None):
+    db = SessionLocal()
+    try:
+        q = db.query(models.PersonalProfile)
+        if child_id is not None:
+            q = q.filter(models.PersonalProfile.child_id == child_id)
+        if task_id is not None:
+            q = q.filter(models.PersonalProfile.task_id == task_id)
+        return q.order_by(models.PersonalProfile.id).all()
+    finally:
+        db.close()
+
+
+def sync_personal_profile_from_logic(profile):
+    """把纯逻辑 PersonalProfile 对象同步入库。
+
+    profile.task_id 约定为 task_definition.id（Integer），由调用方完成转换；
+    每个参数的 status/confidence 由 profile 实时计算后回填。
+    """
+    db = SessionLocal()
+    try:
+        for param_key, slot in profile._params.items():
+            row = (db.query(models.PersonalProfile)
+                   .filter_by(child_id=profile.child_id, task_id=profile.task_id,
+                              param_key=param_key)
+                   .first())
+            if row is None:
+                row = models.PersonalProfile(child_id=profile.child_id,
+                                             task_id=profile.task_id,
+                                             param_key=param_key)
+                db.add(row)
+            row.param_kind = PROFILE_PARAMS.get(param_key, {}).get("kind", "numeric")
+            row.samples = list(slot["samples"])
+            row.reviews = list(slot["reviews"])
+            row.status = profile.status(param_key)
+            row.confidence = profile.confidence(param_key)
+        db.commit()
     finally:
         db.close()

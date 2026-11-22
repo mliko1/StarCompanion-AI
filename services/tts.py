@@ -1,49 +1,45 @@
 # -*- coding: utf-8 -*-
 """语音播报服务：训练过程中的实时语音指令。
 
-基于 pyttsx3（Windows SAPI5 引擎），异步播报，不阻塞训练主流程。
-未安装引擎或系统无声卡时优雅降级（HAS_TTS=False，静默）。
+改用 Windows 自带 PowerShell + System.Speech（SAPI）播报：
+- 每次播报启动一个独立 PowerShell 进程，自带干净的 COM 环境，后台进程也能正常出声；
+- 相比 pyttsx3（在 uvicorn 后台进程的异步线程里会静默失败）更可靠。
 """
 
+import subprocess
 import threading
+import sys
 
-try:
-    import pyttsx3
-    _engine = pyttsx3.init()
+_play_lock = threading.Lock()   # 串行播放，避免多个播报声音重叠
+
+
+def _play(text):
+    safe = text.replace("'", "''")   # 转义单引号
+    script = (
+        "Add-Type -AssemblyName System.Speech;"
+        "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
+        "$s.Rate=1;"
+        "$s.Speak('%s')" % safe
+    )
     try:
-        # 优先选中文语音
-        for v in _engine.getProperty("voices"):
-            name = (v.name or "").lower()
-            if "chinese" in name or "zh" in str(v.id).lower():
-                _engine.setProperty("voice", v.id)
-                break
-    except Exception:
-        pass
-    _engine.setProperty("rate", 160)   # 语速稍慢，适合儿童听清
-    _engine.setProperty("volume", 0.9)
-    HAS_TTS = True
-except Exception:
-    _engine = None
-    HAS_TTS = False
-
-_lock = threading.Lock()
+        subprocess.Popen(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            creationflags=subprocess.CREATE_NO_WINDOW)
+    except Exception as e:
+        print(f"[tts] 播放失败: {e}", flush=True)
 
 
 def speak(text):
     """异步播报一段文字（立即返回，后台播放）。"""
-    if not HAS_TTS or not text:
+    if not text:
         return
 
     def _run():
-        try:
-            with _lock:
-                _engine.say(text)
-                _engine.runAndWait()
-        except Exception:
-            pass
+        with _play_lock:
+            _play(text)
 
     threading.Thread(target=_run, daemon=True).start()
 
 
 def available():
-    return HAS_TTS
+    return True

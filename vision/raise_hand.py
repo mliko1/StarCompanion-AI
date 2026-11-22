@@ -5,6 +5,8 @@
 并用肘部夹角辅助展示。举手开始/结束时，把起止时间和持续时长记录到
 logs/raise_hand_log.csv —— 这是"训练行为量化记录"的最小雏形。
 
+（P0 消重：几何/可靠性/平滑复用 pose_utils，举手判定复用 action_base）
+
 按 q 键或 ESC 键退出。
 
 运行方式（在项目根目录）：
@@ -12,7 +14,6 @@ logs/raise_hand_log.csv —— 这是"训练行为量化记录"的最小雏形�
 """
 
 import csv
-import math
 import os
 import time
 
@@ -21,93 +22,28 @@ import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python import vision
 
+from pose_utils import (LandmarkSmoother, draw_pos, HEAD_POINTS,
+                        POSE_CONNECTIONS, hms_to_sec, L_WRIST, R_WRIST)
+from action_base import raise_check, RaiseTracker
+
 MODEL_PATH = "vision/models/pose_landmarker_full.task"
 LOG_PATH = "logs/raise_hand_log.csv"
 
 SMOOTH_ALPHA = 0.30
-HEAD_POINTS = [0, 7, 8]
-
-# 关键点编号：左肩11 左肘13 左腕15；右肩12 右肘14 右腕16
-L_SHOULDER, L_ELBOW, L_WRIST = 11, 13, 15
-R_SHOULDER, R_ELBOW, R_WRIST = 12, 14, 16
-
-POSE_CONNECTIONS = [
-    (11, 12), (11, 23), (12, 24), (23, 24),
-    (11, 13), (13, 15), (12, 14), (14, 16),
-    (15, 17), (15, 19), (15, 21), (17, 19),
-    (16, 18), (16, 20), (16, 22), (18, 20),
-    (21, 23), (22, 24),
-    (23, 25), (25, 27), (27, 29), (29, 31), (27, 31),
-    (24, 26), (26, 28), (28, 30), (30, 32), (28, 32),
-]
-
-latest_result = None
-smoothed_lms = None
 EDGE_MARGIN = 0.03     # 距画面边缘 3% 以内视为"边缘区"
 
-
-def point_reliable(lm, margin=EDGE_MARGIN):
-    """关键点可靠性检查：置信度足够，且不贴近画面边缘。
-    手臂出画时模型只能"猜"位置，坐标会剧烈抖动，必须视为不可靠。"""
-    return (lm.visibility > 0.5 and
-            margin < lm.x < 1 - margin and
-            margin < lm.y < 1 - margin)
+latest_result = None
+# 举手独立脚本沿用严格可靠性语义：置信度 >0.5 且不贴近边缘（出画冻结）
+smoother = LandmarkSmoother(
+    alpha=SMOOTH_ALPHA, edge_alpha=0.15, min_visibility=0.5,
+    reliable_margin=EDGE_MARGIN, edge_margin=EDGE_MARGIN * 3)
 
 
 def on_result(result, _image, _ts_ms):
-    global latest_result, smoothed_lms
+    global latest_result
     latest_result = result
     if result.pose_landmarks:
-        new_lms = result.pose_landmarks[0]
-        if smoothed_lms is None or len(smoothed_lms) != len(new_lms):
-            smoothed_lms = list(new_lms)
-        else:
-            for i, lm in enumerate(new_lms):
-                prev = smoothed_lms[i]
-                if point_reliable(lm):
-                    # 边缘区自动加强平滑，抑制出画前的剧烈抖动
-                    a = 0.15 if not point_reliable(lm, EDGE_MARGIN * 3) \
-                        else SMOOTH_ALPHA
-                    smoothed_lms[i] = type(lm)(
-                        x=a * lm.x + (1 - a) * prev.x,
-                        y=a * lm.y + (1 - a) * prev.y,
-                        z=a * lm.z + (1 - a) * prev.z,
-                        visibility=lm.visibility,
-                    )
-                # 不可靠（出画/遮挡）：保持最后一个可靠位置，不更新
-                # —— 骨架锁定不抖，但绝不编造新位置
-
-
-def draw_pos(lm, w, h):
-    """识别在原始帧上完成，显示帧是镜像的，因此绘制时 x 要换成 1-x。"""
-    return int((1 - lm.x) * w), int(lm.y * h)
-
-
-def angle_at(p1, p2, p3):
-    """计算以 p2 为顶点、p1 和 p3 为两端的夹角（单位：度）。"""
-    v1 = (p1.x - p2.x, p1.y - p2.y)
-    v2 = (p3.x - p2.x, p3.y - p2.y)
-    dot = v1[0] * v2[0] + v1[1] * v2[1]
-    n1 = (v1[0] ** 2 + v1[1] ** 2) ** 0.5
-    n2 = (v2[0] ** 2 + v2[1] ** 2) ** 0.5
-    if n1 * n2 == 0:
-        return 0.0
-    cos_a = max(-1.0, min(1.0, dot / (n1 * n2)))
-    return math.degrees(math.acos(cos_a))
-
-
-def arm_state(lms, shoulder, elbow, wrist, was_raised):
-    """返回 (是否举起, 肘部夹角)。返回 None 表示手臂出画、判断不可靠。
-    可靠时采用迟滞判断，避免临界点反复翻转：
-    进入"举起"需要手腕高出肩膀 0.06；退出"举起"要等手腕回落到只高出 0.01。"""
-    s, e, w = lms[shoulder], lms[elbow], lms[wrist]
-    if not (point_reliable(s) and point_reliable(w)):
-        return None, angle_at(s, e, w)
-    if was_raised:
-        raised = w.y < s.y - 0.01
-    else:
-        raised = w.y < s.y - 0.06
-    return raised, angle_at(s, e, w)
+        smoother.update(result.pose_landmarks[0])
 
 
 class RaiseLogger:
@@ -120,11 +56,6 @@ class RaiseLogger:
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 csv.writer(f).writerow(["手臂", "开始时间", "结束时间", "持续秒"])
 
-    @staticmethod
-    def _to_sec(hms):
-        h, m, s = hms.split(":")
-        return int(h) * 3600 + int(m) * 60 + int(s)
-
     def update(self, side, raised):
         now = time.strftime("%H:%M:%S")
         if raised and side not in self.active:
@@ -132,8 +63,8 @@ class RaiseLogger:
             print(f"[记录] {side} 开始举手 @ {now}")
         elif not raised and side in self.active:
             start = self.active.pop(side)
-            start_s = self._to_sec(start)
-            end_s = self._to_sec(now)
+            start_s = hms_to_sec(start)
+            end_s = hms_to_sec(now)
             if end_s < start_s:  # 跨越午夜的小概率情况
                 end_s += 86400
             dur = round(end_s - start_s, 1)
@@ -168,9 +99,8 @@ def main():
 
     logger = RaiseLogger(LOG_PATH)
     # 防抖：连续 DEBOUNCE 帧状态一致才真正切换，消除抬手瞬间的抖动误判
-    l_disp, r_disp = False, False   # 对外显示/记录的稳定状态
-    l_cnt, r_cnt = 0, 0
     DEBOUNCE = 8  # 连续 8 帧（约0.27秒）一致才切换状态
+    l_track, r_track = RaiseTracker(DEBOUNCE), RaiseTracker(DEBOUNCE)
     print("摄像头已打开，试着举起手臂；按 q 键退出")
 
     fps, t_last = 0.0, time.time()
@@ -192,6 +122,7 @@ def main():
 
         h, w = frame.shape[:2]
         status = "No person"
+        smoothed_lms = smoother.smoothed
         if smoothed_lms:
             for i, lm in enumerate(smoothed_lms):
                 if i in HEAD_POINTS:
@@ -204,30 +135,18 @@ def main():
                          (0, 200, 255), 2)
 
             # ---------- 举手检测（出画冻结 + 迟滞 + 连续帧防抖） ----------
-            l_raw, l_angle = arm_state(smoothed_lms, L_SHOULDER, L_ELBOW, L_WRIST, l_disp)
-            r_raw, r_angle = arm_state(smoothed_lms, R_SHOULDER, R_ELBOW, R_WRIST, r_disp)
+            l_raw, l_angle = raise_check(
+                smoothed_lms, "left", l_track.disp,
+                min_visibility=0.5, reliable_margin=EDGE_MARGIN)
+            r_raw, r_angle = raise_check(
+                smoothed_lms, "right", r_track.disp,
+                min_visibility=0.5, reliable_margin=EDGE_MARGIN)
 
             arm_warn = (l_raw is None) or (r_raw is None)
 
             # None = 手臂出画，冻结状态不更新；否则连续 DEBOUNCE 帧一致才切换
-            if l_raw is not None:
-                if l_raw == l_disp:
-                    l_cnt = 0
-                else:
-                    l_cnt += 1
-                    if l_cnt >= DEBOUNCE:
-                        l_disp, l_cnt = l_raw, 0
-            else:
-                l_cnt = 0
-            if r_raw is not None:
-                if r_raw == r_disp:
-                    r_cnt = 0
-                else:
-                    r_cnt += 1
-                    if r_cnt >= DEBOUNCE:
-                        r_disp, r_cnt = r_raw, 0
-            else:
-                r_cnt = 0
+            l_disp = l_track.update(l_raw)
+            r_disp = r_track.update(r_raw)
 
             logger.update("left", l_disp)
             logger.update("right", r_disp)

@@ -27,7 +27,8 @@ SKILLS = [      # 生活技能任务（非动作，保持不变）
 ]
 
 
-def add(pid, name, category, rules, priority=None, excludes=None, base=False):
+def add(pid, name, category, rules, priority=None, excludes=None, base=False,
+        min_visibility=None):
     d = {"id": pid, "name": name, "category": category, "rules": rules}
     if priority is not None:
         d["priority"] = priority
@@ -35,6 +36,8 @@ def add(pid, name, category, rules, priority=None, excludes=None, base=False):
         d["excludes"] = excludes
     if base:
         d["base"] = True
+    if min_visibility is not None:
+        d["min_visibility"] = min_visibility
     A.append(d)
 
 
@@ -59,6 +62,14 @@ def an(a, vertex, b, op, val):
     return {"f": "angle", "a": a, "b": vertex, "c": b, "op": op, "val": val}
 
 
+def dy_ratio(a, b, c0, d0, op, val):
+    """肩宽归一化高低比：(b.y - a.y) / dist(c0, d0)，正值 = a 比 b 高。
+
+    对人物远近/体型免疫（替代固定 dy 阈值）。"""
+    return {"f": "dy_ratio", "a": a, "b": b, "c": c0, "d": d0,
+            "op": op, "val": val}
+
+
 # ---------- 关键点索引（MediaPipe 33 点，人物右侧在画面左侧即 x 较小） ----------
 NOSE, L_EAR, R_EAR = 0, 7, 8
 L_SHO, R_SHO = 11, 12
@@ -80,12 +91,21 @@ S = {
 # =====================================================================
 # 一、核心 23 个动作（沿用已调优的规则，保持不变）
 # =====================================================================
-add("raise_right", "举右手", "上肢", [[dy(R_WRI, R_SHO, "<", -0.06)]])
-add("raise_left", "举左手", "上肢", [[dy(L_WRI, L_SHO, "<", -0.06)]])
+# 举手/拍手已升级为「多条件」：肩宽归一化(dy_ratio) + 肘部角度(angle) + 置信度门控，
+# 与 data/actions.json 严格同步（改这里后重跑会保持与引擎一致）。
+add("raise_right", "举右手", "上肢",
+    [[dy_ratio(R_WRI, R_SHO, L_SHO, R_SHO, ">", 0.10),
+      an(R_SHO, R_ELB, R_WRI, ">", 90)]],
+    min_visibility=0.5)
+add("raise_left", "举左手", "上肢",
+    [[dy_ratio(L_WRI, L_SHO, L_SHO, R_SHO, ">", 0.10),
+      an(L_SHO, L_ELB, L_WRI, ">", 90)]],
+    min_visibility=0.5)
 add("both_hands_up", "双手上举", "上肢",
-    [[dy(L_WRI, L_SHO, "<", -0.06), dy(R_WRI, R_SHO, "<", -0.06),
-      an(L_SHO, L_ELB, L_WRI, ">", 140), an(R_SHO, R_ELB, R_WRI, ">", 140)]],
-    priority=10, excludes=["raise_left", "raise_right"])
+    [[dy_ratio(L_WRI, L_SHO, L_SHO, R_SHO, ">", 0.15),
+      dy_ratio(R_WRI, R_SHO, L_SHO, R_SHO, ">", 0.15),
+      an(L_SHO, L_ELB, L_WRI, ">", 120), an(R_SHO, R_ELB, R_WRI, ">", 120)]],
+    priority=10, excludes=["raise_left", "raise_right"], min_visibility=0.5)
 add("clap", "拍手", "上肢",
     [[rt("hc:L", "hc:R", L_SHO, R_SHO, "<", 0.55),
       dy("hc:L", "chest", "<", 0), dy("hc:L", "chest", ">", -0.12),
@@ -390,7 +410,7 @@ ids = [a["id"] for a in A]
 assert len(ids) == len(set(ids)), "存在重复 id"
 
 actions_doc = {
-    "_说明": "星伴AI 动作库（声明式规则，共 100 个动作）。加动作=加一条 JSON，不改代码。特征：dy(高低)/dx(左右)/dist(距离)/ratio(距离比)/angle(角度)。点引用：整数索引、mid:i:j、hc:L/hc:R、chest、belly。字段：rules(条件组，组内AND组间OR)、excludes(命中压制)、priority(优先级)、base(静止姿态)。",
+    "_说明": "星伴AI 动作库（声明式规则，共 100 个动作）。加动作=加一条 JSON，不改代码。特征：dy(高低)/dx(左右)/dist(距离)/ratio(距离比)/angle(角度)/dy_ratio(肩宽归一化高低比)/vis(可见性)。点引用：整数索引、mid:i:j、hc:L/hc:R、chest、belly。字段：rules(条件组，组内AND组间OR)、excludes(命中压制)、priority(优先级)、base(静止姿态)、min_visibility(动作级置信度门控，默认0.3)。",
     "actions": A,
 }
 with open(ACTIONS_JSON, "w", encoding="utf-8") as f:

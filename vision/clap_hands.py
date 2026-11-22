@@ -5,6 +5,8 @@
 双手必须高于胸线，排除手放腿上的误判。
 每拍一次记录时间戳和与上一次的间隔到 logs/clap_log.csv。
 
+（P0 消重：几何/可靠性/平滑复用 pose_utils，拍手判定复用 action_base）
+
 按 q 键或 ESC 键退出（点窗口右上角 X 也可以）。
 
 运行方式（在项目根目录）：
@@ -12,7 +14,6 @@
 """
 
 import csv
-import math
 import os
 import time
 
@@ -21,113 +22,28 @@ import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python import vision
 
-from clap_core import clap_check, ClapCounter
+from pose_utils import (LandmarkSmoother, draw_pos, HEAD_POINTS,
+                        POSE_CONNECTIONS, hms_to_sec, L_WRIST, R_WRIST)
+from action_base import clap_check, ClapCounter
 
 MODEL_PATH = "vision/models/pose_landmarker_full.task"
 LOG_PATH = "logs/clap_log.csv"
 
 SMOOTH_ALPHA = 0.30
-HEAD_POINTS = [0, 7, 8]
 EDGE_MARGIN = 0.03
 
-L_SHOULDER, R_SHOULDER = 11, 12
-L_HIP, R_HIP = 23, 24
-L_WRIST, R_WRIST = 15, 16
-
-POSE_CONNECTIONS = [
-    (11, 12), (11, 23), (12, 24), (23, 24),
-    (11, 13), (13, 15), (12, 14), (14, 16),
-    (15, 17), (15, 19), (15, 21), (17, 19),
-    (16, 18), (16, 20), (16, 22), (18, 20),
-    (21, 23), (22, 24),
-    (23, 25), (25, 27), (27, 29), (29, 31), (27, 31),
-    (24, 26), (26, 28), (28, 30), (30, 32), (28, 32),
-]
-
 latest_result = None
-smoothed_lms = None
-debug_info = {}   # 供日志输出，透视判断的每一环
-
-
-def point_reliable(lm, margin=None):
-    """关键点可靠性检查：置信度足够，且坐标在画面内。
-    只要还在画面内（哪怕贴近边缘）就视为可用——边缘区由平滑加强来压抖动；
-    只有真正出画（坐标越界）或置信度极低才视为不可靠并锁定。"""
-    return (lm.visibility > 0.3 and
-            -0.01 < lm.x < 1.01 and
-            -0.01 < lm.y < 1.01)
+# 拍手用原始关键点判定，平滑仅用于绘制；边缘区加强平滑（0.12）压边界抖动
+smoother = LandmarkSmoother(
+    alpha=SMOOTH_ALPHA, edge_alpha=0.12, min_visibility=0.3,
+    edge_margin=EDGE_MARGIN * 2)
 
 
 def on_result(result, _image, _ts_ms):
-    global latest_result, smoothed_lms
+    global latest_result
     latest_result = result
     if result.pose_landmarks:
-        new_lms = result.pose_landmarks[0]
-        if smoothed_lms is None or len(smoothed_lms) != len(new_lms):
-            smoothed_lms = list(new_lms)
-        else:
-            for i, lm in enumerate(new_lms):
-                prev = smoothed_lms[i]
-                if point_reliable(lm):
-                    # 边缘区（含出画临界）自动加强平滑，抑制边界抖动
-                    near_edge = (lm.x < EDGE_MARGIN * 2 or
-                                 lm.x > 1 - EDGE_MARGIN * 2 or
-                                 lm.y < EDGE_MARGIN * 2 or
-                                 lm.y > 1 - EDGE_MARGIN * 2)
-                    a = 0.12 if near_edge else SMOOTH_ALPHA
-                    smoothed_lms[i] = type(lm)(
-                        x=a * lm.x + (1 - a) * prev.x,
-                        y=a * lm.y + (1 - a) * prev.y,
-                        z=a * lm.z + (1 - a) * prev.z,
-                        visibility=lm.visibility,
-                    )
-                # 不可靠（真正出画）：保持最后一个可靠位置，锁定不抖
-
-
-def dist2d(p1, p2):
-    return math.hypot(p1.x - p2.x, p1.y - p2.y)
-
-
-def hand_center(lms, side):
-    """手掌中心：手腕(15/16)、小指根(17/18)、食指根(19/20)、拇指(21/22)的平均。
-    拍手时掌心贴合，用手掌中心测距远比手腕准确。"""
-    idx = (L_WRIST, 17, 19, 21) if side == "L" else (R_WRIST, 18, 20, 22)
-    x = sum(lms[i].x for i in idx) / 4
-    y = sum(lms[i].y for i in idx) / 4
-    return x, y
-
-
-def clap_state(lms, was_contact):
-    """返回 (双手是否合拢, 掌心距/肩宽比例)。None 表示关键点不可靠。
-    迟滞门槛基于实测数据（拍击时比例约0.30~0.51）：
-    合拢 < 0.55，分开 > 0.80。双手必须高于胸线。
-    髋部不可靠（出画）时，胸线退化为肩线下方 0.15 的估计值。"""
-    lw, rw = lms[L_WRIST], lms[R_WRIST]
-    ls, rs = lms[L_SHOULDER], lms[R_SHOULDER]
-    lh, rh = lms[L_HIP], lms[R_HIP]
-    rel_ok = all(point_reliable(p) for p in (lw, rw, ls, rs))
-    if not rel_ok:
-        debug_info.update(ratio=None, above_chest=None, rel_ok=False)
-        return None, 0.0
-
-    lcx, lcy = hand_center(lms, "L")
-    rcx, rcy = hand_center(lms, "R")
-    ratio = math.hypot(lcx - rcx, lcy - rcy) / max(dist2d(ls, rs), 1e-6)
-
-    if point_reliable(lh) and point_reliable(rh):
-        chest_y = (ls.y + rs.y + lh.y + rh.y) / 4
-    else:
-        chest_y = max(ls.y, rs.y) + 0.15  # 髋部出画时的退让估计
-
-    above_chest = lcy < chest_y and rcy < chest_y
-
-    if was_contact:
-        contact = above_chest and ratio < 0.80
-    else:
-        contact = above_chest and ratio < 0.55
-
-    debug_info.update(ratio=round(ratio, 3), above_chest=above_chest, rel_ok=True)
-    return contact, ratio
+        smoother.update(result.pose_landmarks[0])
 
 
 class ClapLogger:
@@ -144,7 +60,7 @@ class ClapLogger:
     def record(self):
         self.count += 1
         now = time.strftime("%H:%M:%S")
-        now_s = self._to_sec(now)
+        now_s = hms_to_sec(now)
         gap = round(now_s - self.last_ts, 2) if self.last_ts else ""
         if gap != "" and gap < 0:
             gap += 86400
@@ -152,16 +68,6 @@ class ClapLogger:
         with open(self.path, "a", newline="", encoding="utf-8-sig") as f:
             csv.writer(f).writerow([self.count, now, gap])
         print(f"[记录] 第 {self.count} 次拍手 @ {now}，距上次 {gap} 秒")
-
-    @staticmethod
-    def _to_sec(hms):
-        h, m, s = hms.split(":")
-        return int(h) * 3600 + int(m) * 60 + int(s)
-
-
-def draw_pos(lm, w, h):
-    """识别在原始帧上完成，显示帧是镜像的，绘制时 x 换成 1-x。"""
-    return int((1 - lm.x) * w), int(lm.y * h)
 
 
 def main():
@@ -207,6 +113,7 @@ def main():
 
         h, w = frame.shape[:2]
         status = "No person"
+        smoothed_lms = smoother.smoothed
         if smoothed_lms:
             for i, lm in enumerate(smoothed_lms):
                 if i in HEAD_POINTS:

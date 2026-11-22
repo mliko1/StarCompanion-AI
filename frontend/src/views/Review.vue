@@ -5,6 +5,36 @@
 
     <el-card shadow="never" class="block">
       <template #header>
+        <span>确认孩子的惯用手</span>
+      </template>
+      <p class="hint">孩子完成动作时惯用哪只手？确认后，系统会按孩子的习惯判定（例如"举右手"会按惯用左手自动切换为"举左手"）。</p>
+      <el-form :inline="true">
+        <el-form-item label="孩子">
+          <el-select v-model="handForm.child_id" placeholder="选择孩子" style="width: 150px">
+            <el-option v-for="c in children" :key="c.id" :label="c.nickname" :value="c.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="任务">
+          <el-select v-model="handForm.task_id" placeholder="选择任务" filterable style="width: 180px">
+            <el-option v-for="t in tasks" :key="t.task_id" :label="t.name" :value="t.task_id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="惯用手">
+          <el-radio-group v-model="handForm.preferred_hand">
+            <el-radio-button label="left">左手</el-radio-button>
+            <el-radio-button label="right">右手</el-radio-button>
+            <el-radio-button label="both">双手</el-radio-button>
+            <el-radio-button label="unknown">不确定</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="submitHand">保存惯用手</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="never" class="block">
+      <template #header>
         <span>待确认的识别结果</span>
         <el-button size="small" style="float: right" @click="load">刷新</el-button>
       </template>
@@ -37,10 +67,29 @@ import { ref, onMounted } from 'vue'
 import api from '../api'
 
 const records = ref([])
+const children = ref([])
+const tasks = ref([])
+const handForm = ref({ child_id: null, task_id: null, preferred_hand: 'right' })
 
 async function load() {
   const r = await api.vision(true)
   records.value = r.data.records
+}
+
+async function loadMeta() {
+  children.value = (await api.children()).data.children
+  const all = (await api.tasks()).data.tasks
+  tasks.value = all.filter((t) => t.type === 'action')
+}
+
+async function submitHand() {
+  if (handForm.value.child_id == null || !handForm.value.task_id) {
+    ElMessage.warning('请先选择孩子和任务')
+    return
+  }
+  const r = await api.confirmHand(handForm.value)
+  if (r.data && r.data.ok) ElMessage.success('已记录该孩子的惯用手')
+  else ElMessage.error((r.data && r.data.msg) || '保存失败')
 }
 
 async function confirm(row, isCorrect) {
@@ -49,7 +98,10 @@ async function confirm(row, isCorrect) {
   load()
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadMeta()
+})
 </script>
 
 <style scoped>

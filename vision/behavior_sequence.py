@@ -70,7 +70,8 @@ class BehaviorFSM:
         fsm.restart(now)              # 任务重新开始
     """
 
-    def __init__(self):
+    def __init__(self, timeout_scale=1.0):
+        self.timeout_scale = timeout_scale  # 步骤超时缩放（个体化：动作慢的孩子放宽）
         self.steps = self._make_steps()
         self.reset()
 
@@ -163,7 +164,7 @@ class BehaviorFSM:
         step = self.steps[self.idx]
 
         # 超时检查：超时不判失败，标记不确定，继续等待（允许恢复）
-        if now - self.step_start > STEP_TIMEOUTS[step.name]:
+        if now - self.step_start > STEP_TIMEOUTS[step.name] * self.timeout_scale:
             dup = [e for e in self.uncertain_events
                    if e[2].startswith(step.name)]
             if not dup:

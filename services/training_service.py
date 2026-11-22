@@ -28,12 +28,21 @@ import action_engine  # noqa: E402
 from behavior_sequence import BehaviorFSM  # noqa: E402
 from interaction_detector import InteractionDetector  # noqa: E402
 
+from core.personalization import (  # noqa: E402
+    PersonalProfile, effective_params, adapt_action_for_hand,
+    scale_threshold,
+)
+
 from database import crud  # noqa: E402
 from services import tts  # noqa: E402
 from services.camera_service import camera  # noqa: E402
 from services.vision_events import make_event, events  # noqa: E402
 
-DEFAULT_HOLD_SEC = 2.0
+DEFAULT_HOLD_SEC = 1.5
+
+# 保持判定的抖动容差：连续 miss 超过该秒数才重置计时，
+# 避免关键点轻微抖动导致"做对了却永远完不成"
+MISS_TOLERANCE_SEC = 0.4
 
 # 瞬时动作：用「原始关键点」识别（平滑会抹掉拍手这种瞬间合掌的峰值）
 # 持续动作（举手等）：仍用「平滑关键点」，配合 hold_sec 防抖更稳
@@ -83,6 +92,8 @@ class TrainingService:
         self.hold_start = None
         self.detected_now = False
         self.current_action = None
+        self.action_frames = 0      # 检测总帧数（用于置信度统计）
+        self.action_hits = 0        # 目标动作命中帧数
         # skill 任务状态
         self.skill = None
         self.current_step = None
@@ -98,6 +109,9 @@ class TrainingService:
         self.plan_scene_id = None
         self.plan_prompt_level = 0
         self.plan_hold_sec = DEFAULT_HOLD_SEC
+        # 个体化适应状态
+        self.personal_profile = None   # PersonalProfile（纯逻辑对象）
+        self.effective = {}            # 有效个体化参数 {param_key: value}
 
     # ---------- 对外接口 ----------
     def start(self, task_id, child_id=None, scene_id=None, prompt_level=0,
@@ -138,6 +152,7 @@ class TrainingService:
         self.skill = None
         self.current_step = None
         self.completed_steps = []
+        self._load_personalization()
         self._stop_flag.clear()
         self._pause_flag.clear()
 
@@ -147,7 +162,8 @@ class TrainingService:
             containers = self.task_params.get(
                 "containers", ["book", "cup", "remote", "bowl"])
             self.skill = {
-                "fsm": BehaviorFSM(),
+                "fsm": BehaviorFSM(
+                    timeout_scale=self.effective.get("hold_sec_scale", 1.0)),
                 "inter": None,
                 "target": target,
                 "containers": containers,
@@ -258,13 +274,15 @@ class TrainingService:
         self.skill = None
         self.current_step = None
         self.completed_steps = []
+        self._load_personalization()
 
         if task.type == "skill":
             target = self.task_params.get("target", "bottle")
             containers = self.task_params.get(
                 "containers", ["book", "cup", "remote", "bowl"])
             self.skill = {
-                "fsm": BehaviorFSM(),
+                "fsm": BehaviorFSM(
+                    timeout_scale=self.effective.get("hold_sec_scale", 1.0)),
                 "inter": None,
                 "target": target,
                 "containers": containers,
@@ -272,6 +290,53 @@ class TrainingService:
                 "prev_completed": set(),
                 "prev_uncertain": 0,
             }
+
+    def _load_personalization(self):
+        """从数据库加载当前孩子×任务的个体化档案，计算有效参数。
+
+        数据不足或加载失败时退化为「固定标准」（effective 为空），
+        个体化只会在多次训练 + 人工审核积累足够样本后才生效。
+        """
+        self.personal_profile = None
+        self.effective = {}
+        if not self.session_id:
+            return
+        try:
+            s = crud.get_session(self.session_id)
+            if not s or s.child_id is None or s.task_id is None:
+                return
+            rows = crud.list_personal_profiles(child_id=s.child_id,
+                                               task_id=s.task_id)
+            if not rows:
+                return
+            profile = PersonalProfile(s.child_id, s.task_id)
+            for r in rows:
+                profile.set_slot(r.param_key, r.samples, r.reviews)
+            self.personal_profile = profile
+            self.effective = effective_params(profile)
+        except Exception as e:  # 个体化失败不阻断训练
+            self.personal_profile = None
+            self.effective = {}
+            print(f"[个体化] 档案加载失败，回退固定标准: {e}")
+
+    def _record_personalization(self, completed, elapsed):
+        """训练结束时把本次观察写回个体化档案（逐步建立参考范围）。
+
+        仅在「完成」时记录完成用时，作为 hold_sec_scale 的观察样本：
+        observed = 完成总用时 / 基准保持时长（越大=动作越慢）。
+        初期样本处于 pending 不生效，多次后才收敛为有效缩放系数。
+        """
+        if not self.personal_profile or not completed:
+            return
+        try:
+            base = max(self.hold_sec, 0.5)
+            observed = elapsed / base
+            # 钳制到 hold_sec_scale 的合理区间，避免偶发长时间磨蹭污染参考范围
+            observed = min(max(observed, 0.5), 4.0)
+            self.personal_profile.record("hold_sec_scale", round(observed, 3))
+            crud.sync_personal_profile_from_logic(self.personal_profile)
+        except Exception as e:
+            print(f"[个体化] 观察写回失败: {e}")
 
     def pause(self):
         if self.state != "running":
@@ -336,8 +401,26 @@ class TrainingService:
     # ---------- 动作类任务 ----------
     def _run_action(self):
         """训练单个动作直到完成或停止，返回是否完成（供方案模式循环调用）。"""
-        target_action = self.task_params.get("action_id")
+        # ---- 个体化适应：惯用手镜像 + 保持时长/幅度/速度缩放 ----
+        orig_action = self.task_params.get("action_id")
+        hand = self.effective.get("preferred_hand", "unknown")
+        target_action = adapt_action_for_hand(orig_action, hand)
+        hold_scale = self.effective.get("hold_sec_scale", 1.0)
+        effective_hold = scale_threshold(self.hold_sec, hold_scale)
+        amplitude_scale = self.effective.get("amplitude_scale", 1.0)
+        speed_scale = self.effective.get("speed_scale", 1.0)
+        if target_action != orig_action:
+            self.message = (f"开始训练：{self.task.name}"
+                            f"（个体化：{orig_action}→{target_action}）")
         instant = target_action in INSTANT_ACTIONS
+        # clap 用有状态检测器：在单帧规则之上追加拍手骤降防伪（P2）
+        tracker = (action_engine.ActionTracker(
+                       amplitude_scale=amplitude_scale,
+                       speed_scale=speed_scale)
+                   if target_action == "clap" else None)
+        miss_since = None  # 最近一次 miss 的起始时间（用于抖动容差）
+        self.action_frames = 0      # 每个动作重新统计命中率（置信度）
+        self.action_hits = 0
         while not self._stop_flag.is_set():
             if self._pause_flag.is_set():
                 time.sleep(0.1)
@@ -348,24 +431,39 @@ class TrainingService:
             if not lms:
                 self.detected_now = False
                 self.hold_start = None
+                miss_since = now
                 time.sleep(0.05)
                 continue
             try:
-                hits = action_engine.detect_actions(lms)
+                if tracker is not None:
+                    hits = tracker.detect(lms, now)
+                else:
+                    hits = action_engine.detect_actions(
+                        lms, amplitude_scale=amplitude_scale)
             except Exception:
                 hits = []
             self.current_action = hits[0] if hits else None
             hit = target_action in hits
+            self.action_frames += 1
+            if hit:
+                self.action_hits += 1
             if hit:
                 self.detected_now = True
+                miss_since = None
                 if self.hold_start is None:
                     self.hold_start = now
-                if now - self.hold_start >= self.hold_sec:
+                if now - self.hold_start >= effective_hold:
                     self._finish(completed=True)
                     return True
             else:
                 self.detected_now = False
-                self.hold_start = None
+                # 容差：短暂 miss（< MISS_TOLERANCE_SEC）不重置计时，
+                # 只有连续 miss 超过容差才重新计时
+                if miss_since is None:
+                    miss_since = now
+                elif now - miss_since > MISS_TOLERANCE_SEC:
+                    self.hold_start = None
+                    miss_since = now
             time.sleep(0.05)
         return False
 
@@ -411,7 +509,11 @@ class TrainingService:
             _smoothed, raw_lms = camera.get_landmarks()
             if raw_lms is not None:
                 if skill["inter"] is None:
-                    skill["inter"] = InteractionDetector(skill["target"], fw, fh)
+                    # 个体化：传入孩子惯用手，优先追踪该手
+                    skill["inter"] = InteractionDetector(
+                        skill["target"], fw, fh,
+                        preferred_hand=self.effective.get(
+                            "preferred_hand", "unknown"))
                 interaction, _ev, _ch = skill["inter"].update(
                     raw_lms, detections, now)
 
@@ -474,6 +576,9 @@ class TrainingService:
             self.state = "running"  # 方案模式：单个动作结束，方案仍在进行
         else:
             self.state = action_state
+        # 命中率作为置信度（而非恒 1.0/0.0）
+        conf = (self.action_hits / self.action_frames
+                if self.action_frames > 0 else (1.0 if completed else 0.0))
         if self.session_id:
             s = crud.get_session(self.session_id)
             elapsed = 0.0
@@ -485,7 +590,23 @@ class TrainingService:
             crud.add_action_record(
                 self.session_id, step_name=self.task.name if self.task else None,
                 action_id=self.task_params.get("action_id") if self.task_params else None,
-                detected=completed, confidence=1.0 if completed else 0.0)
+                detected=completed, confidence=round(conf, 3))
+            # 写 AI 原始识别结果（与人工确认 manual_review 分开，不被覆盖）
+            crud.add_vision_record(
+                self.session_id,
+                raw_result={"action_id": self.task_params.get("action_id"),
+                            "completed": completed},
+                confidence=round(conf, 3),
+                uncertainty=not completed,
+                uncertainty_reason=None if completed else "未达到保持时长")
+            # 个体化适应：把本次完成用时写回档案（逐步建立参考范围）
+            self._record_personalization(completed, elapsed)
+        events.add(make_event("action_detected",
+                              self.task.name if self.task else "动作",
+                              time.time(), session_id=self.session_id,
+                              confidence=round(conf, 3),
+                              details={"action_id": self.task_params.get("action_id"),
+                                       "completed": completed}))
         events.add(make_event("task_finished", self.message, time.time(),
                               session_id=self.session_id,
                               details={"completed": completed}))

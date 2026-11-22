@@ -1,5 +1,5 @@
 {
-  "_说明": "星伴AI 动作库（声明式规则，共 100 个动作）。加动作=加一条 JSON，不改代码。特征：dy(高低)/dx(左右)/dist(距离)/ratio(距离比)/angle(角度)。点引用：整数索引、mid:i:j、hc:L/hc:R、chest、belly。字段：rules(条件组，组内AND组间OR)、excludes(命中压制)、priority(优先级)、base(静止姿态)。",
+  "_说明": "星伴AI 动作库（声明式规则，共 100 个动作）。加动作=加一条 JSON，不改代码。特征：dy(高低)/dx(左右)/dist(距离)/ratio(距离比)/angle(角度)/dy_ratio(肩宽归一化高低比)/vis(可见性)。点引用：整数索引、mid:i:j、hc:L/hc:R、chest、belly。字段：rules(条件组，组内AND组间OR)、excludes(命中压制)、priority(优先级)、base(静止姿态)、min_visibility(动作级置信度门控，默认0.3)。",
   "actions": [
     {
       "id": "raise_right",
@@ -8,14 +8,25 @@
       "rules": [
         [
           {
-            "f": "dy",
+            "f": "dy_ratio",
             "a": 16,
             "b": 12,
-            "op": "<",
-            "val": -0.06
+            "c": 11,
+            "d": 12,
+            "op": ">",
+            "val": 0.1
+          },
+          {
+            "f": "angle",
+            "a": 12,
+            "b": 14,
+            "c": 16,
+            "op": ">",
+            "val": 90
           }
         ]
-      ]
+      ],
+      "min_visibility": 0.5
     },
     {
       "id": "raise_left",
@@ -24,14 +35,25 @@
       "rules": [
         [
           {
-            "f": "dy",
+            "f": "dy_ratio",
             "a": 15,
             "b": 11,
-            "op": "<",
-            "val": -0.02
+            "c": 11,
+            "d": 12,
+            "op": ">",
+            "val": 0.1
+          },
+          {
+            "f": "angle",
+            "a": 11,
+            "b": 13,
+            "c": 15,
+            "op": ">",
+            "val": 90
           }
         ]
-      ]
+      ],
+      "min_visibility": 0.5
     },
     {
       "id": "both_hands_up",
@@ -40,18 +62,22 @@
       "rules": [
         [
           {
-            "f": "dy",
+            "f": "dy_ratio",
             "a": 15,
             "b": 11,
-            "op": "<",
-            "val": -0.06
+            "c": 11,
+            "d": 12,
+            "op": ">",
+            "val": 0.15
           },
           {
-            "f": "dy",
+            "f": "dy_ratio",
             "a": 16,
             "b": 12,
-            "op": "<",
-            "val": -0.06
+            "c": 11,
+            "d": 12,
+            "op": ">",
+            "val": 0.15
           },
           {
             "f": "angle",
@@ -59,7 +85,7 @@
             "b": 13,
             "c": 15,
             "op": ">",
-            "val": 140
+            "val": 120
           },
           {
             "f": "angle",
@@ -67,7 +93,7 @@
             "b": 14,
             "c": 16,
             "op": ">",
-            "val": 140
+            "val": 120
           }
         ]
       ],
@@ -75,7 +101,8 @@
       "excludes": [
         "raise_left",
         "raise_right"
-      ]
+      ],
+      "min_visibility": 0.5
     },
     {
       "id": "clap",

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""数据库模型：11 张规范表（数据库应用设计大赛核心设计）。
+"""数据库模型：12 张规范表（数据库应用设计大赛核心设计）。
 
 表名与《星伴AI项目升级修改建议与实施路线》文档一致：
 child_profile / task_definition / task_step / scene_info / training_session /
-step_event / prompt_record / vision_result / manual_review / analysis_result / model_version
+step_event / prompt_record / vision_result / manual_review / analysis_result /
+model_version / personal_profile
 
 设计要点：
 1. AI 识别结果（vision_result）与人工确认（manual_review）分开存储，
@@ -27,6 +28,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -202,3 +204,29 @@ class Recommendation(Base):
     independent_rate = Column(Float)
     completion_rate = Column(Float)
     created_at = Column(DateTime, default=now)
+
+
+class PersonalProfile(Base):
+    """个体化档案（创新点：个体化适应）。
+
+    每个孩子 × 每个任务 × 每个个体化参数，逐步建立参考范围：
+    - 首次训练仅记录并标记 pending（待人工确认），不把第一次当标准；
+    - 多次训练 + 人工审核后收敛为 building / stable。
+    与 AI 原始结果（vision_result）、人工确认（manual_review）分离存储。
+    """
+    __tablename__ = "personal_profile"
+    __table_args__ = (
+        UniqueConstraint("child_id", "task_id", "param_key",
+                         name="uq_personal_profile_param"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    child_id = Column(Integer, ForeignKey("child_profile.id"), nullable=False)
+    task_id = Column(Integer, ForeignKey("task_definition.id"), nullable=False)
+    param_key = Column(String(64), nullable=False)      # preferred_hand / amplitude_scale 等
+    param_kind = Column(String(16), default="numeric")  # categorical / numeric
+    samples = Column(JSON, default=list)                 # 观察值序列
+    reviews = Column(JSON, default=list)                 # 人工确认记录 [{value, correct}]
+    status = Column(String(16), default="pending")       # pending / building / stable
+    confidence = Column(Float, default=0.0)
+    updated_at = Column(DateTime, default=now, onupdate=now)

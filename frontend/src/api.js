@@ -23,4 +23,8 @@ export default {
   vision: (pendingOnly = false) =>
     http.get('/api/reports/vision', { params: { pending_only: pendingOnly } }),
   submitReview: (payload) => http.post('/api/reports/review', payload),
+  // 个体化适应
+  personalProfiles: (childId) =>
+    http.get('/api/personalization/profiles', { params: { child_id: childId } }),
+  confirmHand: (payload) => http.post('/api/personalization/confirm_hand', payload),
 }

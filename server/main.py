@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api import camera as camera_api
+from api import personalization as personalization_api
 from api import reports as reports_api
 from api import training as training_api
 from database import crud
@@ -72,6 +73,7 @@ def get_plan(child_id: int | None = None):
 app.include_router(training_api.router)
 app.include_router(camera_api.router)
 app.include_router(reports_api.router)
+app.include_router(personalization_api.router)
 
 
 # ---------- 序列化 ----------

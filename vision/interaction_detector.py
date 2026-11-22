@@ -20,6 +20,7 @@ from collections import deque
 import cv2
 
 from object_detector import load_model, detect_objects, draw_detections
+from pose_utils import hand_center  # noqa: F401  复用公共手掌中心（供 skill_task_session 导入）
 
 LOG_PATH = "data/interaction_logs/interaction_log.csv"
 
@@ -33,13 +34,6 @@ VOTE_MIN = 5           # 窗口内至少几帧成立
 TOUCH_EXPAND = 1.35    # 接触判定时边界框放大倍数
 PICK_DISP_RATIO = 0.4  # 拿起判定：位移 > 0.4 倍肩宽
 PLACE_STILL_SEC = 0.6  # 放下判定：物品静止时长
-
-
-def hand_center(lms, idx_points):
-    """手掌中心坐标（归一化）。"""
-    x = sum(lms[i].x for i in idx_points) / len(idx_points)
-    y = sum(lms[i].y for i in idx_points) / len(idx_points)
-    return x, y
 
 
 def dist_to_bbox(px, py, bbox):
@@ -61,9 +55,12 @@ def point_in_box(px, py, bbox, expand=1.0):
 class InteractionDetector:
     """规则式交互判断器：跟踪目标物品，多帧投票输出交互状态。"""
 
-    def __init__(self, target_name, frame_w, frame_h):
+    def __init__(self, target_name, frame_w, frame_h, preferred_hand="unknown"):
         self.target_name = target_name
         self.frame_w, self.frame_h = frame_w, frame_h
+        # 个体化：惯用手。left/right 时优先追踪该手（可见即用，忽略另一手干扰）；
+        # unknown/both 时保持"取离物品最近的手"。
+        self.preferred_hand = (preferred_hand or "unknown").lower()
         self.prev_center = None      # 物品上一帧中心
         self.touched_center = None   # 首次接触时的物品中心
         self.near_votes = deque(maxlen=VOTE_WINDOW)
@@ -75,6 +72,14 @@ class InteractionDetector:
         self.last_bbox = None        # 最后一次检测到的目标框（宽限期用）
         self.last_seen = 0.0         # 最后检测到目标的时刻
         self.GRACE_SEC = 0.5         # 目标丢失宽限期
+
+    def _hand_order(self):
+        """返回手部遍历顺序：指定惯用手时该手优先。"""
+        if self.preferred_hand == "left":
+            return ((HAND_POINTS_L, "left"), (HAND_POINTS_R, "right"))
+        if self.preferred_hand == "right":
+            return ((HAND_POINTS_R, "right"), (HAND_POINTS_L, "left"))
+        return ((HAND_POINTS_L, "left"), (HAND_POINTS_R, "right"))
 
     def _switch(self, new_state):
         changed = new_state != self.state
@@ -113,13 +118,18 @@ class InteractionDetector:
                     (ocenter[1] - self.prev_center[1]) ** 2) ** 0.5 / shoulder_w
         self.prev_center = ocenter
 
-        # 3. 双手中心，取离物品最近的一只
+        # 3. 手部中心选择（个体化：指定惯用手时优先该手，忽略另一手干扰）
         hand, hand_name = None, None
-        for idx_pts, hname in ((HAND_POINTS_L, "left"), (HAND_POINTS_R, "right")):
+        prefer = self.preferred_hand in ("left", "right")
+        for idx_pts, hname in self._hand_order():
             try:
                 hx, hy = hand_center(lms, idx_pts)
             except IndexError:
                 continue
+            if prefer:
+                # 惯用手模式：_hand_order 把惯用手排第一，可见即采用
+                hand, hand_name = (hx, hy), hname
+                break
             d = dist_to_bbox(hx, hy, (x1, y1, x2, y2))
             if hand is None or d < dist_to_bbox(hand[0], hand[1],
                                                 (x1, y1, x2, y2)):

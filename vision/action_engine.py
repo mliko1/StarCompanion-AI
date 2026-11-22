@@ -6,13 +6,17 @@
 "原子特征 + 规则组合"，每个动作只是一条 JSON 规则。
 
 原子特征（每帧从姿态关键点算出一个标量）：
-    dy      a.y - b.y      （a 相对 b 的高低，负=更高）
-    dx      a.x - b.x      （a 相对 b 的左右）
-    dist    a 与 b 的距离
-    ratio   dist(a,b) / dist(c,d)  （距离比，对距离远近免疫）
-    angle   以 b 为顶点的夹角（度）
+    dy       a.y - b.y      （a 相对 b 的高低，负=更高）
+    dx       a.x - b.x      （a 相对 b 的左右）
+    dist     a 与 b 的距离
+    ratio    dist(a,b) / dist(c,d)  （距离比，对距离远近免疫）
+    angle    以 b 为顶点的夹角（度）
+    dy_ratio (b.y - a.y) / dist(c,d)（肩宽归一化的高低比，正值= a 比 b 高）
+    vis      a 的可见性（置信度）
 
 规则：多个条件 AND 组合，每个条件 {f,a,b[,c,d],op,val}，op ∈ < > <= >=。
+动作级字段 min_visibility：该动作所有关键点的可见性门槛（默认 0.3），
+用于置信度门控（P1 多条件举手对肩/肘/腕要求更高可见性）。
 
 点引用：整数索引、"mid:i:j"（中点）、"hc:L"/"hc:R"（手掌中心）、
         "chest"/"belly"（胸/腹中心）。
@@ -26,6 +30,7 @@ import os
 from collections import namedtuple
 
 from clap_core import point_reliable
+from action_base import clap_check, ClapCounter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACTIONS_JSON = os.path.join(ROOT, "data", "actions.json")
@@ -38,6 +43,25 @@ _OPS = {
     "<=": lambda v, t: v <= t,
     ">=": lambda v, t: v >= t,
 }
+
+# 个体化幅度缩放只作用于这两个「幅度类」特征：
+#   dy_ratio 肩宽归一化高低比（举手"手腕高出肩"的核心特征）
+#   ratio    距离比（拍手"掌心距/肩宽"的核心特征）
+# 方向性（dx）与可见性（vis）等特征不做缩放，避免误判。
+AMPLITUDE_FEATURES = {"dy_ratio", "ratio"}
+
+
+def _scaled_val(f, op, val, scale):
+    """个体化幅度缩放：scale<1 表示孩子动作幅度小，放宽判定。
+
+    op 为 >/>= 时降低阈值、</<= 时提高阈值，保证 scale<1 更宽松；
+    scale=1.0 或非幅度类特征时原样返回（默认行为完全不变）。
+    """
+    if scale == 1.0 or f not in AMPLITUDE_FEATURES:
+        return val
+    if op in ("<", "<="):
+        return val / scale
+    return val * scale
 
 
 def _pt_indices(p):
@@ -94,7 +118,7 @@ def _angle(a, b, c):
     return math.degrees(math.acos(cos))
 
 
-def _eval(lms, cond):
+def _eval(lms, cond, scale=1.0):
     f = cond["f"]
     if f == "dy":
         v = _resolve(lms, cond["a"]).y - _resolve(lms, cond["b"]).y
@@ -108,9 +132,18 @@ def _eval(lms, cond):
     elif f == "angle":
         v = _angle(_resolve(lms, cond["a"]), _resolve(lms, cond["b"]),
                    _resolve(lms, cond["c"]))
+    elif f == "dy_ratio":
+        # 肩宽归一化的高低比：(b.y - a.y) / dist(c, d)，正值= a 比 b 高。
+        # 对人物远近/体型免疫（P1 多条件举手用）。
+        v = (_resolve(lms, cond["b"]).y - _resolve(lms, cond["a"]).y) / \
+            max(_hypot(_resolve(lms, cond["c"]), _resolve(lms, cond["d"])), 1e-6)
+    elif f == "vis":
+        # 关键点可见性（置信度），供规则内显式门控。
+        v = _resolve(lms, cond["a"]).visibility
     else:
         raise ValueError(f"未知特征: {f}")
-    return _OPS[cond["op"]](v, cond["val"])
+    val = _scaled_val(f, cond["op"], cond["val"], scale)
+    return _OPS[cond["op"]](v, val)
 
 
 def load_actions(path=ACTIONS_JSON):
@@ -142,12 +175,16 @@ def _resolve_conflicts(hits, actions):
     return [a["id"] for a in actions if a["id"] in keep]
 
 
-def detect_actions(lms, actions=None):
+def detect_actions(lms, actions=None, amplitude_scale=1.0):
     """返回命中的所有动作 id 列表。lms 为原始关键点。
 
     规则结构：a["rules"] 是一组条件组（组内 AND，组间 OR）。
     例如"摸头"可用左手或右手，写成两组。
-    命中后再做冲突消解（excludes / 优先级 / base 静止姿态）。"""
+    命中后再做冲突消解（excludes / 优先级 / base 静止姿态）。
+
+    amplitude_scale：个体化幅度缩放，<1 表示孩子动作幅度小，
+    对 dy_ratio/ratio 幅度阈值放宽判定；默认 1.0 不变。
+    """
     if not lms:
         return []
     actions = actions if actions is not None else load_actions()
@@ -159,8 +196,48 @@ def detect_actions(lms, actions=None):
                 for key in ("a", "b", "c", "d"):
                     if key in c:
                         needed |= _pt_indices(c[key])
-        if not all(point_reliable(lms[i]) for i in needed):
+        if not all(point_reliable(lms[i], min_visibility=a.get("min_visibility", 0.3))
+                   for i in needed):
             continue
-        if any(all(_eval(lms, c) for c in group) for group in a["rules"]):
+        if any(all(_eval(lms, c, amplitude_scale) for c in group)
+               for group in a["rules"]):
             hits.add(a["id"])
     return _resolve_conflicts(hits, actions)
+
+
+class ActionTracker:
+    """有状态动作检测器：detect_actions + 拍手时序防伪（P2）。
+
+    detect_actions 是无状态单帧规则，无法表达"快速骤降"这类时序特征。
+    拍手（clap）是瞬时动作，仅靠单帧"掌心距/肩宽 < 0.55 + 高于胸线"
+    会把手缓慢靠近、整理动作误判为拍手。本类对 clap 追加骤降防伪：
+    只有合拢前 0.35 秒内比例快速骤降（真拍手是快速撞击）才认定命中。
+
+    用法：
+        tracker = ActionTracker()
+        hits = tracker.detect(lms, now)   # now 为当前时间戳（秒）
+    """
+
+    def __init__(self, actions=None, amplitude_scale=1.0, speed_scale=1.0):
+        self.actions = actions if actions is not None else load_actions()
+        self.amplitude_scale = amplitude_scale
+        self.speed_scale = speed_scale
+        self._clap = ClapCounter(speed_scale=speed_scale)
+
+    def reset(self):
+        self._clap.reset()
+
+    def detect(self, lms, now):
+        hits = detect_actions(lms, self.actions,
+                              amplitude_scale=self.amplitude_scale)
+        # 每帧都维护 clap 的 ratio 历史（骤降防伪需要"分开→合拢"的完整
+        # 时序，不能只在单帧命中 clap 时才更新，否则高 ratio 入不了历史）。
+        contact, ratio = clap_check(lms, self._clap.contact)
+        if contact is None:
+            self._clap.contact = False
+        else:
+            self._clap.update(ratio, contact, now)
+        # clap 命中 = 单帧规则命中 且 骤降防伪通过（真合拢）
+        if "clap" in hits and not self._clap.contact:
+            hits = [h for h in hits if h != "clap"]
+        return hits

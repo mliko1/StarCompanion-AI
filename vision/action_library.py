@@ -19,10 +19,12 @@ from mediapipe.tasks.python import vision
 from action_engine import load_actions, detect_actions
 from clap_core import point_reliable
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACTIONS = load_actions()
 
-MODEL_PATH = "vision/models/pose_landmarker_full.task"
-LOG_PATH = "logs/action_log.csv"
+# MediaPipe 底层无法打开含中文的绝对路径，用相对路径（main 里先 chdir 到根目录）
+MODEL_PATH = os.path.join("vision", "models", "pose_landmarker_full.task")
+LOG_PATH = os.path.join("logs", "action_log.csv")
 HEAD_POINTS = [0, 7, 8]
 SMOOTH_ALPHA = 0.3
 
@@ -59,6 +61,7 @@ def draw_pos(lm, w, h):
 
 
 def main():
+    os.chdir(BASE_DIR)   # 切到项目根目录，相对路径才能指向正确文件
     name_by_id = {a["id"]: a["name"] for a in ACTIONS}
     if not os.path.exists(LOG_PATH):
         with open(LOG_PATH, "w", newline="", encoding="utf-8-sig") as f:
