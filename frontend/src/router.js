@@ -4,8 +4,11 @@ import Training from './views/Training.vue'
 import Reports from './views/Reports.vue'
 import Review from './views/Review.vue'
 import Settings from './views/Settings.vue'
+import Login from './views/Login.vue'
+import { isLoggedIn } from './auth'
 
 const routes = [
+  { path: '/login', component: Login, meta: { title: '登录', public: true } },
   { path: '/', component: Dashboard, meta: { title: '首页' } },
   { path: '/training', component: Training, meta: { title: '训练操作' } },
   { path: '/reports', component: Reports, meta: { title: '训练报告' } },
@@ -14,7 +17,16 @@ const routes = [
 ]
 
 // hash 模式：后端静态挂载无需额外的路由回退配置
-export default createRouter({
+const router = createRouter({
   history: createWebHashHistory(),
   routes,
 })
+
+// 未登录只看登录页；已登录不再回登录页
+router.beforeEach((to) => {
+  if (!to.meta.public && !isLoggedIn()) return { path: '/login' }
+  if (to.path === '/login' && isLoggedIn()) return { path: '/' }
+  return true
+})
+
+export default router

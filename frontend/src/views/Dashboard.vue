@@ -4,9 +4,11 @@
 
     <el-row :gutter="16">
       <el-col :span="12" :md="6" v-for="card in cards" :key="card.label">
-        <el-card shadow="hover" class="stat-card block" :style="{ '--card-tint': card.tint }">
-          <div class="stat-icon">{{ card.icon }}</div>
-          <div class="stat-label">{{ card.label }}</div>
+        <el-card shadow="never" class="stat-card block">
+          <div class="stat-top">
+            <span class="stat-label">{{ card.label }}</span>
+            <LineIcon :name="card.icon" class="stat-ico" />
+          </div>
           <div class="stat-value">{{ card.value }}</div>
         </el-card>
       </el-col>
@@ -51,6 +53,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '../api'
+import LineIcon from '../components/LineIcon.vue'
 
 const stats = ref(null)
 const status = ref(null)
@@ -60,10 +63,10 @@ const suggestions = ref([])
 const cards = computed(() => {
   if (!stats.value) return []
   return [
-    { label: '累计训练次数', value: stats.value.total, icon: '🏋️', tint: 'rgba(91,124,250,0.13)' },
-    { label: '任务完成率', value: (stats.value.completion_rate * 100).toFixed(0) + '%', icon: '✅', tint: 'rgba(103,194,58,0.14)' },
-    { label: '提示依赖指数 PDI', value: stats.value.pdi.toFixed(2), icon: '📉', tint: 'rgba(139,92,246,0.13)' },
-    { label: '独立完成率', value: (stats.value.independent_rate * 100).toFixed(0) + '%', icon: '🌟', tint: 'rgba(230,162,60,0.15)' },
+    { label: '累计训练次数', value: stats.value.total, icon: 'activity' },
+    { label: '任务完成率', value: (stats.value.completion_rate * 100).toFixed(0) + '%', icon: 'completion' },
+    { label: '提示依赖指数 PDI', value: stats.value.pdi.toFixed(2), icon: 'pdi' },
+    { label: '独立完成率', value: (stats.value.independent_rate * 100).toFixed(0) + '%', icon: 'independence' },
   ]
 })
 
@@ -87,11 +90,11 @@ setInterval(load, 5000)
 
 <style scoped>
 .status-line { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
-.status-line .k { color: #8a91a6; width: 70px; font-size: 13px; }
-.status-line .v { color: #2b2f3e; font-size: 14px; font-weight: 500; }
+.status-line .k { color: #8b93a5; width: 70px; font-size: 13px; }
+.status-line .v { color: #344054; font-size: 14px; font-weight: 500; }
 .advice {
-  padding: 12px 16px; margin-bottom: 10px; border-radius: 12px;
-  background: linear-gradient(135deg, #f2f5ff 0%, #f6f1ff 100%);
-  border-left: 4px solid var(--primary); font-size: 14px; color: #3a4055;
+  padding: 11px 14px; margin-bottom: 10px; border-radius: 10px;
+  background: #f7f9fc;
+  font-size: 14px; color: #475467;
 }
 </style>

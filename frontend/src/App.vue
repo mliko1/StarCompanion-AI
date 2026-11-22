@@ -1,53 +1,70 @@
 <template>
   <div class="app">
-    <aside class="sidebar">
+    <aside v-if="!isLogin" class="sidebar">
       <div class="brand">
-        <span class="brand-logo">★</span>
         <span class="brand-text">星伴<em>AI</em></span>
       </div>
       <nav class="nav">
         <router-link v-for="item in menus" :key="item.path" :to="item.path"
                      class="nav-item" :class="{ active: $route.path === item.path }">
-          <span class="icon">{{ item.icon }}</span><span>{{ item.title }}</span>
+          <span class="icon"><LineIcon :name="item.icon" /></span><span>{{ item.title }}</span>
         </router-link>
       </nav>
       <div class="sidebar-foot">家庭康复训练辅助</div>
     </aside>
 
-    <main class="content">
+    <main class="content" :class="{ 'content-full': isLogin }">
       <router-view />
     </main>
 
-    <nav class="tabbar">
+    <nav v-if="!isLogin" class="tabbar">
       <router-link v-for="item in menus" :key="item.path" :to="item.path"
                    class="tab-item" :class="{ active: $route.path === item.path }">
-        <span class="icon">{{ item.icon }}</span><span>{{ item.title }}</span>
+        <span class="icon"><LineIcon :name="item.icon" /></span><span>{{ item.title }}</span>
       </router-link>
     </nav>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import LineIcon from './components/LineIcon.vue'
+
 const menus = [
-  { path: '/', title: '首页', icon: '🏠' },
-  { path: '/training', title: '训练', icon: '🎯' },
-  { path: '/reports', title: '报告', icon: '📊' },
-  { path: '/review', title: '确认', icon: '✅' },
-  { path: '/settings', title: '设置', icon: '⚙️' },
+  { path: '/', title: '首页', icon: 'home' },
+  { path: '/training', title: '训练', icon: 'training' },
+  { path: '/reports', title: '报告', icon: 'reports' },
+  { path: '/review', title: '确认', icon: 'review' },
+  { path: '/settings', title: '设置', icon: 'settings' },
 ]
+
+const route = useRoute()
+const isLogin = computed(() => route.path === '/login')
 </script>
 
 <style>
 /* ============ 全局设计系统 ============ */
 :root {
-  --primary: #5b7cfa;
-  --primary-2: #8b5cf6;
-  --primary-grad: linear-gradient(135deg, #5b7cfa 0%, #8b5cf6 100%);
-  --bg: #f4f6fb;
-  --text: #2b2f3e;
-  --muted: #8a91a6;
+  --primary: #0b63ce;
+  --primary-2: #4a90e8;
+  --primary-grad: linear-gradient(to bottom left, #0b63ce 0%, #4a90e8 100%);
+  --bg: #f3f7fc;
+  --surface: #ffffff;
+  --text: #26374d;
+  --muted: #7b8aa0;
+  --line: rgba(17, 32, 56, 0.06);
   --card-radius: 16px;
-  --shadow: 0 6px 24px rgba(40, 60, 130, 0.08);
+  --shadow-soft: 0 2px 10px rgba(31, 54, 90, 0.05);
+
+  /* Element Plus 主色（按钮、标签、选中态统一成蓝色） */
+  --el-color-primary: #0b63ce;
+  --el-color-primary-light-3: #4a90e8;
+  --el-color-primary-light-5: #7fb0f0;
+  --el-color-primary-light-7: #b3d0f7;
+  --el-color-primary-light-8: #cfe0fa;
+  --el-color-primary-light-9: #eef5fe;
+  --el-color-primary-dark-2: #0a58ba;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -57,70 +74,85 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
-.app { min-height: 100vh; }
+.app { min-height: 100vh; background: var(--bg); }
 
 /* ---------- 侧边栏 ---------- */
 .sidebar {
   position: fixed; left: 0; top: 0; bottom: 0; width: 224px;
-  background: linear-gradient(180deg, #1d2140 0%, #2b2f5e 100%);
-  padding: 24px 16px; z-index: 10;
+  background: #f7f9fc;
+  border-right: 1px solid #eaeff7;
+  padding: 22px 14px; z-index: 10;
   display: flex; flex-direction: column;
 }
-.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 28px; }
-.brand-logo {
-  width: 34px; height: 34px; border-radius: 10px;
-  background: var(--primary-grad); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; box-shadow: 0 4px 14px rgba(91, 124, 250, 0.5);
+.brand { padding: 2px 10px 30px; }
+.brand-text {
+  font-size: 21px; font-weight: 600; color: #0f172a;
+  letter-spacing: 4px;
 }
-.brand-text { font-size: 21px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
-.brand-text em { font-style: normal; background: var(--primary-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand-text em {
+  font-style: normal; font-size: 11px; font-weight: 600;
+  color: #8b93a5; letter-spacing: 1px;
+  margin-left: 6px; vertical-align: 2px;
+}
 .nav { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .nav-item {
   display: flex; align-items: center; gap: 12px;
-  padding: 13px 16px; border-radius: 12px;
-  color: rgba(255, 255, 255, 0.62); text-decoration: none;
-  font-size: 15px; transition: all 0.18s ease;
+  padding: 10px 12px; border-radius: 10px;
+  color: #344054; text-decoration: none;
+  font-size: 14px;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  border: 1px solid transparent;
 }
-.nav-item:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.nav-item .icon { color: #7c8ca6; transition: color 0.18s ease; }
+.nav-item:hover { background: #eef2f8; color: #0f172a; }
+.nav-item:hover .icon { color: #475467; }
 .nav-item.active {
-  background: var(--primary-grad); color: #fff; font-weight: 600;
-  box-shadow: 0 6px 18px rgba(91, 124, 250, 0.45);
+  background: #ffffff; color: #0f172a; font-weight: 600;
+  border-color: #e6edf6;
 }
-.icon { font-size: 19px; width: 24px; text-align: center; }
-.sidebar-foot { color: rgba(255, 255, 255, 0.3); font-size: 12px; text-align: center; padding-top: 12px; }
+.nav-item.active .icon { color: var(--primary); }
+.icon { width: 24px; display: flex; align-items: center; justify-content: center; }
+.sidebar-foot { color: #8296ae; font-size: 12px; text-align: center; padding-top: 12px; }
 
 /* ---------- 内容区 ---------- */
-.content { margin-left: 224px; padding: 28px; min-height: 100vh; }
-.page-title { font-size: 24px; font-weight: 700; margin-bottom: 20px; color: var(--text); }
+.content { margin-left: 224px; padding: 40px 48px 56px; min-height: 100vh; position: relative; }
+.content:not(.content-full) > div { max-width: 1120px; margin: 0 auto; }
+.page-title { font-size: 28px; font-weight: 600; margin-bottom: 24px; color: #0f172a; letter-spacing: -0.4px; }
 .block { margin-bottom: 18px; }
 
 /* ---------- Element Plus 卡片统一美化 ---------- */
 .el-card {
-  border-radius: var(--card-radius) !important;
-  border: none !important;
-  box-shadow: var(--shadow) !important;
+  border-radius: 14px !important;
+  border: 1px solid #e6edf6 !important;
+  background: var(--surface) !important;
+  box-shadow: none !important;
 }
-.el-card__header { border-bottom: 1px solid #eef0f6 !important; font-weight: 600; color: var(--text); }
+.el-card__header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--line) !important;
+  font-weight: 600; color: #344054; font-size: 15px;
+}
 
 /* ---------- 统计卡片 ---------- */
-.stat-card { position: relative; overflow: hidden; border-radius: var(--card-radius) !important; }
-.stat-card::after {
-  content: ''; position: absolute; right: -28px; top: -28px;
-  width: 96px; height: 96px; border-radius: 50%;
-  background: var(--card-tint, rgba(91, 124, 250, 0.08));
+.stat-card {
+  border-radius: 14px !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
-.stat-icon {
-  width: 42px; height: 42px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px; margin-bottom: 10px;
-  background: var(--card-tint, rgba(91, 124, 250, 0.12));
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: #d7e3f3 !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05) !important;
 }
-.stat-label { color: var(--muted); font-size: 13px; }
-.stat-value { font-size: 30px; font-weight: 700; margin-top: 4px; letter-spacing: -0.5px; }
+.stat-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.stat-ico { width: 16px; height: 16px; color: #b0b8c7; }
+.stat-label { color: #8b93a5; font-size: 13px; }
+.stat-value {
+  font-size: 30px; font-weight: 600; color: #1f2430; margin-top: 10px;
+  letter-spacing: -0.6px; font-variant-numeric: tabular-nums;
+}
 
 /* ---------- 通用 ---------- */
-.muted { color: #b6bccd; font-size: 13px; text-align: center; padding: 20px; }
+.muted { color: #93a1b5; font-size: 13px; text-align: center; padding: 20px; }
 
 /* ---------- 移动端底部导航 ---------- */
 .tabbar { display: none; }
@@ -138,7 +170,58 @@ body {
     flex: 1; display: flex; flex-direction: column; align-items: center;
     gap: 3px; padding: 9px 0; color: #9aa1b3; text-decoration: none; font-size: 11px;
   }
-  .tab-item .icon { font-size: 21px; }
+  .tab-item .icon { color: #98a1b3; }
+  .tab-item .line-ico { width: 20px; height: 20px; }
   .tab-item.active { color: var(--primary); font-weight: 600; }
+  .tab-item.active .icon { color: var(--primary); }
 }
+
+/* ---------- 表格统一美化 ---------- */
+.el-table {
+  font-size: 14px; color: #3f4d63; border-radius: 12px; overflow: hidden;
+  background: transparent !important;
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: #f6f9fd;
+  --el-table-row-hover-bg-color: #f7fafe;
+  --el-table-border-color: rgba(17, 32, 56, 0.05);
+}
+.el-table th.el-table__cell {
+  background: #f6f9fd !important;
+  color: #6b7a8f !important;
+  font-weight: 600;
+  font-size: 13px;
+  height: 44px;
+}
+.el-table tr, .el-table td.el-table__cell { background: transparent !important; }
+.el-table td.el-table__cell { padding: 12px 0; border-bottom: 1px solid rgba(17, 32, 56, 0.05); }
+.el-table__body tr:hover > td.el-table__cell { background: #f7fafe !important; }
+.el-table::before { display: none; }
+
+/* ---------- 表单控件 ---------- */
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  border-radius: 10px !important;
+  box-shadow: 0 0 0 1px #dfe8f3 inset !important;
+  transition: box-shadow 0.18s ease;
+}
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px var(--primary) inset !important;
+}
+.el-button { border-radius: 8px; border-color: #dce5f0; }
+.el-button:hover { border-color: #c8d7ea; }
+
+/* ---------- 标签：低饱和 ---------- */
+.el-tag { border: none !important; border-radius: 6px; font-weight: 500; }
+.el-tag--success { background: #e3f4ea !important; color: #227a4b !important; }
+.el-tag--danger { background: #fdeae8 !important; color: #bf4238 !important; }
+.el-tag--warning { background: #fdf1dd !important; color: #9a6a1f !important; }
+.el-tag--info { background: #f1f4f8 !important; color: #6b7a8f !important; }
+.el-tag--primary { background: #eaf2fd !important; color: #0b63ce !important; }
+
+/* ---------- 纯色背景 ---------- */
+.content-full { margin-left: 0 !important; padding: 0 !important; }
+
 </style>
