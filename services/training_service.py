@@ -367,12 +367,13 @@ class TrainingService:
             self.thread = None
         if self.plan_mode:
             self._finish_plan(completed=False)
-            return {"ok": True, "msg": "训练方案已结束"}
-        if self.task and self.task.type == "skill":
+        elif self.task and self.task.type == "skill":
             self._finish_skill(completed=False)
         else:
             self._finish(completed=False)
-        return {"ok": True, "msg": "训练已结束"}
+        # 训练结束必须释放摄像头，否则一直占用（影响下次启动与别的程序）
+        camera_status = camera.stop()
+        return {"ok": True, "msg": "训练已结束", "camera": camera_status}
 
     def status(self):
         return {

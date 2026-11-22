@@ -159,12 +159,7 @@ class CameraService:
         if self.thread is not None:
             self.thread.join(timeout=1.0)
             self.thread = None
-        if self.landmarker is not None:
-            try:
-                self.landmarker.close()
-            except Exception:
-                pass
-            self.landmarker = None
+        # 先释放摄像头（快），保证接口不阻塞、设备立刻可用
         if self.cap is not None:
             self.cap.release()
             self.cap = None
@@ -173,6 +168,20 @@ class CameraService:
         self.smoothed_lms = None
         self.raw_lms = None
         self.smoother.reset()
+
+        # MediaPipe LIVE_STREAM 下 landmarker.close() 需等异步回调收尾，可能耗时数秒。
+        # 放到守护线程异步释放，避免阻塞 stop 接口导致前端超时；
+        # 期间 running 已为 False、cap 已释放，下次 start 可正常重新打开。
+        landmarker = self.landmarker
+        self.landmarker = None
+        if landmarker is not None:
+            def _close():
+                try:
+                    landmarker.close()
+                except Exception:
+                    pass
+            threading.Thread(target=_close, daemon=True).start()
+
         return {"ok": True, "msg": "摄像头已释放"}
 
 
