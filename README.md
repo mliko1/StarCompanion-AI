@@ -83,7 +83,7 @@ AI 识别结果与人工确认分开存储，可对不确定的识别结果进�
 | 前端 | Vue3 + Element Plus + ECharts + Axios |
 | 视觉 | OpenCV + MediaPipe Pose + Ultralytics YOLO + NumPy |
 | 算法 | 规则式交互识别 + FSM 有限状态机 + DTW 相似度 |
-| 语音 | pyttsx3（Windows SAPI5，训练指令实时播报） |
+| 语音 | Windows System.Speech（SAPI5，独立进程异步播报，训练指令实时提示；`services/tts.py`） |
 | 硬件/桌面端 | ESP32 串口控制器（需实物联调）、PySide6 儿童训练端（对接后端） |
 
 ## 目录结构
