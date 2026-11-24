@@ -11,13 +11,18 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
 @router.get("/dashboard")
-def dashboard():
-    return report_service.dashboard_stats()
+def dashboard(child_id: int | None = None):
+    return report_service.dashboard_stats(child_id)
 
 
 @router.get("/sessions")
 def sessions(limit: int = 20):
     return {"sessions": report_service.list_sessions_detailed(limit)}
+
+
+@router.get("/session/{session_id}")
+def session_report(session_id: int):
+    return report_service.session_report(session_id)
 
 
 @router.get("/vision")

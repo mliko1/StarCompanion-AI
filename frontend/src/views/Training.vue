@@ -43,6 +43,14 @@
             <el-option v-for="(label, i) in promptLabels" :key="i" :label="label" :value="i" />
           </el-select>
         </el-form-item>
+        <el-form-item v-if="selectedTask && selectedTask.type === 'skill'" label="自定义物品候选">
+          <div class="cont-tags">
+            <el-tag v-for="c in containerCandidates" :key="c" size="small"
+                    :type="isCustomModel(c) ? 'success' : 'info'">
+              {{ c }}{{ isCustomModel(c) ? ' · 家庭自定义' : '' }}
+            </el-tag>
+          </div>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="start" :disabled="state === 'running'">开始训练</el-button>
           <el-button @click="pause" :disabled="state !== 'running'">暂停</el-button>
@@ -76,6 +84,13 @@
         <!-- 生活技能类（多步骤）任务 -->
         <template v-else>
           <p v-if="status.target_object">目标物品：{{ status.target_object }}</p>
+          <p v-if="status.containers" class="cont-line">
+            自定义物品候选：
+            <el-tag v-for="c in status.containers" :key="c" size="small"
+                    :type="isCustomModel(c) ? 'success' : 'info'">
+              {{ c }}{{ isCustomModel(c) ? ' · 家庭自定义' : '' }}
+            </el-tag>
+          </p>
           <p>当前步骤：<b>{{ stepName(status.current_step) }}</b></p>
           <p>交互状态：{{ status.current_interaction }}</p>
           <div class="steps">
@@ -90,11 +105,44 @@
       </template>
       <template v-else>尚未开始训练</template>
     </el-card>
+
+    <el-dialog v-model="reportVisible" title="本次训练报告" width="520px">
+      <template v-if="report">
+        <div class="report-head">
+          <el-tag :type="report.completed ? 'success' : 'danger'">{{ report.completed ? '已完成' : '未完成' }}</el-tag>
+          <span class="report-task">{{ report.task_name }}</span>
+        </div>
+        <el-descriptions :column="2" border size="small" class="report-desc">
+          <el-descriptions-item label="场景">{{ report.scene || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="提示等级">{{ report.prompt_label || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="用时">{{ report.elapsed_sec }} 秒</el-descriptions-item>
+          <el-descriptions-item label="儿童">{{ report.child || '—' }}</el-descriptions-item>
+        </el-descriptions>
+        <div v-if="report.steps && report.steps.length" class="report-block">
+          <div class="report-subtitle">步骤完成情况</div>
+          <div class="steps">
+            <span v-for="s in report.steps" :key="s.order" class="step-chip done">{{ (s.order || 0) + 1 }}. {{ s.name }}</span>
+          </div>
+        </div>
+        <div class="report-block">
+          <div class="report-subtitle">表现评价</div>
+          <p class="report-text">{{ report.evaluation }}</p>
+        </div>
+        <div class="report-block">
+          <div class="report-subtitle">下一步建议</div>
+          <p class="report-text">{{ report.advice }}</p>
+        </div>
+      </template>
+      <template #footer>
+        <el-button type="primary" @click="reportVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import api from '../api'
 
 const tasks = ref([])
@@ -104,6 +152,9 @@ const taskId = ref('')
 const sceneId = ref('')
 const promptLevel = ref(0)
 const status = ref(null)
+const customModels = ref([])
+const reportVisible = ref(false)
+const report = ref(null)
 
 const KIND_TEXT = { strengthen: '需加强', consolidate: '巩固', new: '新动作', review: '复习' }
 const KIND_TYPE = { strengthen: 'danger', consolidate: 'warning', new: 'primary', review: 'info' }
@@ -122,6 +173,16 @@ const actionTasks = computed(() => tasks.value.filter(t => t.type === 'action'))
 const skillTasks = computed(() => tasks.value.filter(t => t.type === 'skill'))
 const state = computed(() => status.value ? status.value.state : 'idle')
 const cameraRunning = computed(() => status.value && status.value.camera && status.value.camera.running)
+const selectedTask = computed(() => tasks.value.find(t => t.task_id === taskId.value))
+const containerCandidates = computed(() => {
+  const t = selectedTask.value
+  if (!t || t.type !== 'skill') return []
+  const base = (t.params && t.params.containers) || []
+  const merged = [...base]
+  customModels.value.forEach(c => { if (!merged.includes(c)) merged.push(c) })
+  return merged
+})
+function isCustomModel(name) { return customModels.value.includes(name) }
 
 const stateMap = { idle: '空闲', running: '训练中', paused: '已暂停', done: '已完成', aborted: '已结束' }
 const stateText = computed(() => stateMap[state.value] || state.value)
@@ -138,11 +199,31 @@ async function loadBase() {
   if (scenes.value.length) sceneId.value = scenes.value[0].id
   // 默认选中推荐方案第一个动作（免手动选任务）
   if (plan.value.length && !taskId.value) taskId.value = plan.value[0].task_id
+  // 家庭自定义模型列表（训练完成后自动作为放置目标候选）
+  try {
+    const c = await api.calibrationModels()
+    customModels.value = (c.data.models || []).map(m => m.class_name)
+  } catch (e) { console.warn(e) }
 }
 async function refreshStatus() {
   try {
     const r = await api.trainingStatus()
+    const prev = status.value ? status.value.state : null
     status.value = r.data
+    const cur = r.data.state
+    // 训练结束（running/paused -> done/aborted）时弹出本次训练报告
+    if ((prev === 'running' || prev === 'paused') &&
+        (cur === 'done' || cur === 'aborted') && r.data.session_id) {
+      await loadReport(r.data.session_id)
+    }
+  } catch (e) { console.warn(e) }
+}
+
+async function loadReport(sessionId) {
+  try {
+    const r = await api.sessionReport(sessionId)
+    report.value = r.data
+    reportVisible.value = true
   } catch (e) { console.warn(e) }
 }
 
@@ -190,6 +271,8 @@ setInterval(refreshStatus, 2000)
 .plan-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .plan-rate { color: #8a91a6; font-size: 12px; font-weight: 400; }
 .plan-reason { color: #8a91a6; font-size: 13px; margin-top: 3px; }
+.cont-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.cont-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
 .video-wrap { display: flex; justify-content: center; }
 .video {
   width: 100%; max-width: 640px; border-radius: 14px; background: #000;
@@ -211,4 +294,10 @@ setInterval(refreshStatus, 2000)
   background: var(--primary-grad); color: #fff; font-weight: 600;
   box-shadow: 0 4px 12px rgba(11, 99, 206, 0.28);
 }
+.report-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.report-task { font-size: 17px; font-weight: 600; color: #1f2430; }
+.report-desc { margin-bottom: 6px; }
+.report-block { margin-top: 14px; }
+.report-subtitle { font-size: 14px; font-weight: 600; color: #344054; margin-bottom: 6px; }
+.report-text { color: #5b6480; line-height: 1.7; font-size: 14px; margin: 0; }
 </style>

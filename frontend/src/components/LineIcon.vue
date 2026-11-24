@@ -31,6 +31,11 @@
       <line x1="8" x2="8" y1="10" y2="14" />
       <line x1="16" x2="16" y1="18" y2="22" />
     </g>
+    <g v-else-if="name === 'calibrate'">
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <line x1="12" x2="12" y1="8" y2="16" />
+      <line x1="8" x2="16" y1="12" y2="12" />
+    </g>
 
     <!-- 数据卡图标 -->
     <g v-else-if="name === 'activity'">

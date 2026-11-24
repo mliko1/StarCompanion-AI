@@ -11,6 +11,7 @@ data/*.bak
 data/*.old
 data/sequence_logs/
 data/interaction_logs/
+data.zip
 
 # ===== 运行日志 =====
 logs/

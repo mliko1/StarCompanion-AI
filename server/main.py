@@ -12,7 +12,9 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
+from api import calibration as calibration_api
 from api import camera as camera_api
 from api import personalization as personalization_api
 from api import reports as reports_api
@@ -74,6 +76,7 @@ app.include_router(training_api.router)
 app.include_router(camera_api.router)
 app.include_router(reports_api.router)
 app.include_router(personalization_api.router)
+app.include_router(calibration_api.router)
 
 
 # ---------- 序列化 ----------
@@ -91,7 +94,35 @@ def _scene_to_dict(s):
 
 def _child_to_dict(c):
     return {"id": c.id, "nickname": c.nickname,
-            "birth_year": c.birth_year, "gender": c.gender}
+            "birth_year": c.birth_year, "gender": c.gender, "notes": c.notes}
+
+
+class ChildRequest(BaseModel):
+    nickname: str
+    birth_year: int | None = None
+    gender: str | None = None
+    notes: str | None = None
+
+
+@app.post("/api/children")
+def create_child(req: ChildRequest):
+    c = crud.create_child(req.nickname, req.birth_year, req.gender, req.notes)
+    return {"ok": True, "child": _child_to_dict(c)}
+
+
+@app.put("/api/children/{child_id}")
+def update_child(child_id: int, req: ChildRequest):
+    c = crud.update_child(child_id, req.nickname, req.birth_year,
+                          req.gender, req.notes)
+    if not c:
+        return {"ok": False, "msg": "档案不存在"}
+    return {"ok": True, "child": _child_to_dict(c)}
+
+
+@app.delete("/api/children/{child_id}")
+def delete_child(child_id: int):
+    ok = crud.delete_child(child_id)
+    return {"ok": ok, "msg": "已删除" if ok else "删除失败：档案不存在或已有训练记录"}
 
 
 # ---------- 前端挂载 ----------

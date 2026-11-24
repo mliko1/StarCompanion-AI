@@ -81,6 +81,8 @@ def main():
     ap.add_argument("--batch", type=int, default=8, help="批大小（CPU 建议 8）")
     ap.add_argument("--val-ratio", type=float, default=0.2, help="验证集比例")
     ap.add_argument("--device", default="cpu", help="训练设备 cpu / 0")
+    ap.add_argument("--patience", type=int, default=50,
+                    help="早停轮数：验证精度连续该轮数不提升即提前停止")
     args = ap.parse_args()
 
     classes = _discover_classes()
@@ -109,6 +111,17 @@ def main():
     # 延迟导入，避免未安装 ultralytics 时启动即报错
     from ultralytics import YOLO
 
+    # ultralytics 会把 sys.stdout 改成 UTF-8，训练日志中的中文/特殊字符在 GBK 控制台
+    # 下可能报编码错误；恢复为系统默认编码并用 replace 兜底。
+    import sys
+    import locale
+    try:
+        _enc = locale.getpreferredencoding(False) or "utf-8"
+        sys.stdout.reconfigure(encoding=_enc, errors="replace")
+        sys.stderr.reconfigure(encoding=_enc, errors="replace")
+    except Exception:
+        pass
+
     model = YOLO(BASE_MODEL)
     model.train(
         data=yaml_path,
@@ -121,6 +134,7 @@ def main():
         name=args.name,
         exist_ok=True,
         verbose=True,
+        patience=args.patience,
     )
 
     # 导出：把 best.pt 复制为 vision/models/custom_<name>.pt，方便技能任务直接加载

@@ -25,6 +25,16 @@
 - **个体化适应**：每个孩子×每个任务逐步建立个人参考范围（惯用手/幅度/时长/速度容差），
   首次训练仅记录待确认、多次训练 + 人工审核才收敛，不确定结果交家长确认；
   已接入动作判定（惯用手镜像、幅度/速度阈值缩放、步骤超时缩放）
+- **家庭校准（物体个体化，v2.2 新增）**：像人脸识别一样，家长把自家的收纳盒/物品
+  放进画面中央的**绿色引导框**缓慢转动，系统自动采集 + 自动生成 YOLO 标注 + 早停自动训练
+  到收敛，产出家庭专属模型 `custom_<类名>.pt`；训练完成后自动纳入技能任务的放置目标候选，
+  无需手动画框或改配置（`api/calibration.py` + `services/calibration_service.py`
+  + `vision/family_calibrate.py`）
+- **训练结束即时反馈**：每次训练结束自动弹出「本次训练报告」，含步骤完成情况、
+  表现评价与下一步建议（`GET /api/reports/session/{id}`）
+- **报告页专业解读**：按儿童筛选统计，自动给出完成率 / PDI 解读与后续训练计划推荐
+- **儿童档案管理**：网页端新增 / 编辑 / 删除儿童档案（昵称 / 出生年份 / 性别 / 备注），
+  已有训练记录的档案禁止误删
 - **规范数据库 12 张表**：AI 识别结果与人工确认分开存储，可追溯
 - **多设备访问**：电脑运行算法与摄像头，手机/平板通过局域网浏览器操作
 
@@ -71,9 +81,10 @@ AI 识别结果与人工确认分开存储，可对不确定的识别结果进�
 
 ```text
 ├── vision/                 计算机视觉算法（姿态/动作/交互/行为FSM/物品检测）
-│   └── 自训练流水线：collect_dataset → label_dataset → train_custom_yolo → evaluate_model
-├── services/               业务服务层（摄像头/训练调度/方案模式/报告/语音TTS/视觉事件）
-├── api/                    接口路由（训练/方案训练/摄像头/报告/个体化）
+│   ├── 自训练流水线：collect_dataset → label_dataset → train_custom_yolo → evaluate_model
+│   └── family_calibrate.py：家庭校准一键脚本（引导拍照 → 自动标注 → 微调训练）
+├── services/               业务服务层（摄像头/训练调度/方案模式/报告/语音TTS/视觉事件/家庭校准）
+├── api/                    接口路由（训练/方案训练/摄像头/报告/个体化/家庭校准）
 ├── database/               SQLAlchemy 模型 + CRUD + 种子数据（12 张表）
 ├── server/                 FastAPI 入口（main.py / run.py）
 ├── frontend/               Vue3 前端工程
@@ -170,13 +181,54 @@ python vision/evaluate_model.py --model vision/models/custom_box.pt
 - 训练完成后，把 `skill_task_session.py` 的 `--target` 换成你的自定义类名即可；
 - 权重自动导出到 `vision/models/custom_<name>.pt`。
 
-### 7. ESP32 交互盒固件
+### 7. 家庭校准（推荐：像人脸识别一样，无需手动画框）
+
+不同家庭的收纳盒长得不一样，家庭校准让系统认识**你家**的物品，产出专属模型
+`custom_<类名>.pt`。提供两种方式，二选一：
+
+**方式 A：网页自动采集（推荐，无需手动拍照）**
+
+1. 打开网页系统，进入左侧菜单「校准」页；
+2. 第 1 步填入类名（如 `my_box`），点「开始展示」；
+3. 把物品放进画面中央的**绿色引导框**，缓慢转动 / 移动，画面每变化一次系统自动拍一张，
+   并用绿框自动生成 YOLO 标签（建议 ≥ 20 张）；
+4. 点「结束展示并训练」，系统以 300 轮 + 早停（patience=50）**自动训练到最佳识别效果**；
+5. 训练完成后模型自动纳入技能任务的放置目标候选，**无需改任何配置**，训练页会显示
+   「my_box · 家庭自定义」标签并直接参与识别。
+
+对应接口（启动后访问 `http://127.0.0.1:8000/docs` 可查看 FastAPI 自动文档）：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/calibration/models` | 已训练的家庭模型列表 |
+| GET | `/api/calibration/status` | 采集/训练状态、已采集张数、模型列表 |
+| POST | `/api/calibration/collect/start` | 开始展示，body：`{"class_name": "my_box"}` |
+| POST | `/api/calibration/finish` | 结束展示并自动训练到收敛 |
+| POST | `/api/calibration/stop` | 放弃本次展示（不训练） |
+
+状态机：`idle → collecting → training → done / error`。
+
+**方式 B：命令行脚本（手动控制拍照时机）**
+
+```powershell
+python vision/family_calibrate.py --name my_box --epochs 50
+```
+
+- 空格 = 拍一张（物品尽量占满绿框）；`s` = 连拍模式（每 0.5 秒一张，方便转动换角度）；
+  `q` = 退出拍照并自动开始训练；建议 30~50 张，覆盖多角度 / 多距离 / 多光照；
+- 绿色引导框即标注框，脚本自动生成 YOLO 标签，无需手动标注；
+- 产出 `vision/models/custom_my_box.pt`，之后把技能任务的目标类名换成 `my_box` 即可使用。
+
+> 两种方式共用数据集目录 `data/custom_dataset/`（`images/` + `labels/`），
+> 训练均复用 `vision/train_custom_yolo.py`（CPU 可跑，几十张图约 10~30 分钟）。
+
+### 8. ESP32 交互盒固件
 
 `hardware/esp32_controller.py` 为电脑端串口控制器（需 `pip install pyserial`），
 配套固件在 `hardware/esp32_firmware/esp32_firmware.ino`（Arduino IDE 烧录）。
 串口协议：`LED:ON/OFF`、`BUZZ:毫秒`，按键上报 `BTN:1/0`。
 
-### 8. 运行单元测试
+### 9. 运行单元测试
 
 ```powershell
 python tests/test_behavior_fsm.py
@@ -185,7 +237,7 @@ python tests/test_decision.py
 python tests/test_action_engine.py
 python tests/test_personalization.py       # 个体化参考范围引擎
 python tests/test_adaptive_thresholds.py   # 幅度/速度阈值缩放
-python tests/test_calibration.py           # 惯用手接入 + 标定脚本
+python tests/test_calibration.py           # 惯用手接入 + 家庭标定脚本
 ```
 
 > `test_calibration.py` 依赖 `cv2`/`ultralytics`，请在项目 `.venv` 下运行：
@@ -217,10 +269,13 @@ PDI（提示依赖指数）= Σpᵢ / (4N)，独立完成率 = 独立完成任�
 1. **识别用原始帧，显示用镜像帧**：镜像画面喂给模型会导致左右手判定颠倒
 2. **快慢动作分策略**：持续动作（举手）用重平滑+长防抖；瞬时动作（拍手）用原始关键点+短确认
 3. **迟滞门槛防临界抖动**：进入/退出状态用两道不同门槛
-4. **阈值参数必须实测标定**：印证「个体化行为分析」方向，正式产品应支持按个体自动标定阈值
+4. **阈值参数必须实测标定**：印证「个体化行为分析」方向；v2.2 已落地「家庭校准」
+   （镜头前展示物品 → 自动采集 / 自动标注 / 早停训练）与个体化参考范围引擎，
+   可按儿童 / 家庭自动适配阈值与目标物品
 5. **已知局限**（单目 2D 方案固有边界）：手臂完全出画无法识别、宽松衣物影响精度、
-   精度为行为记录级而非医学测量级；YOLO 用 COCO 预训练模型，**无法识别收纳盒**，
-   需用碗/书/杯等可识别物品替代（已如实标注，未虚构能力）
+   精度为行为记录级而非医学测量级；COCO 预训练模型本身**无法识别收纳盒**等自定义物品，
+   v2.2 起可通过「家庭校准」训练专属模型解决（见快速开始第 7 节），
+   未校准前仍需用碗 / 书 / 杯等 COCO 可识别物品替代
 
 ## 开发环境
 
@@ -253,6 +308,15 @@ PDI（提示依赖指数）= Σpᵢ / (4N)，独立完成率 = 独立完成任�
 
 ## 更新日志
 
+- **v2.2**（2026-11）：家庭校准（物体个体化）+ 训练报告闭环
+  - 新增「校准」网页页与 `/api/calibration/*` 接口：镜头前展示物品自动采集、
+    自动绿框标注、早停自动训练到收敛，产出 `custom_<类名>.pt` 家庭专属模型；
+    训练完成后自动纳入技能任务放置目标候选，无需改配置
+  - 新增命令行 `vision/family_calibrate.py`（空格拍照 / s 连拍 / q 训练）；
+    `train_custom_yolo.py` 增加 `--patience` 早停并修复 GBK 控制台编码
+  - `object_detector.py` 支持同时加载多个家庭自定义模型，与 COCO 检测结果合并
+  - 训练结束自动弹出「本次训练报告」（步骤 / 评价 / 建议），新增 `GET /api/reports/session/{id}`
+  - 报告页增加按儿童筛选、专业解读与后续训练计划推荐；新增儿童档案增删改（含备注）
 - **v2.1**（2026-11）：个体化适应——每个孩子×每个任务逐步建立个人参考范围
   （惯用手/幅度/时长/速度），首次训练仅记录待确认、多次训练 + 人工审核才收敛；
   已接入动作判定（惯用手镜像、幅度/速度阈值缩放、步骤超时缩放、惯用手优先追踪），

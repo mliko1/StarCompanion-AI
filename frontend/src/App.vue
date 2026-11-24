@@ -34,6 +34,7 @@ import LineIcon from './components/LineIcon.vue'
 const menus = [
   { path: '/', title: '首页', icon: 'home' },
   { path: '/training', title: '训练', icon: 'training' },
+  { path: '/calibration', title: '校准', icon: 'calibrate' },
   { path: '/reports', title: '报告', icon: 'reports' },
   { path: '/review', title: '确认', icon: 'review' },
   { path: '/settings', title: '设置', icon: 'settings' },

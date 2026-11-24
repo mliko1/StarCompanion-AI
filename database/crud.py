@@ -46,6 +46,45 @@ def create_child(nickname, birth_year=None, gender=None, notes=None):
         db.close()
 
 
+def update_child(child_id, nickname=None, birth_year=None, gender=None,
+                 notes=None):
+    db = SessionLocal()
+    try:
+        c = db.get(models.ChildInfo, child_id)
+        if c:
+            if nickname is not None:
+                c.nickname = nickname
+            if birth_year is not None:
+                c.birth_year = birth_year
+            if gender is not None:
+                c.gender = gender
+            if notes is not None:
+                c.notes = notes
+            db.commit()
+            db.refresh(c)
+        return c
+    finally:
+        db.close()
+
+
+def delete_child(child_id):
+    """删除儿童档案；存在训练记录时拒绝删除（返回 False）。"""
+    db = SessionLocal()
+    try:
+        c = db.get(models.ChildInfo, child_id)
+        if not c:
+            return False
+        n = (db.query(models.TrainingSession)
+             .filter_by(child_id=child_id).count())
+        if n > 0:
+            return False
+        db.delete(c)
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
 # ---------- 任务库 ----------
 def list_tasks():
     db = SessionLocal()

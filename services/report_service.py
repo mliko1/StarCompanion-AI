@@ -2,15 +2,19 @@
 """报告统计服务：聚合训练数据，计算 PDI/独立完成率/趋势/建议。"""
 
 from core import decision as dec
+from core.plan import build_plan
 from database import models
 from database.db import SessionLocal
 
 
-def dashboard_stats():
-    """首页仪表盘 + 报告页所需的全部统计（一次查询）。"""
+def dashboard_stats(child_id=None):
+    """首页仪表盘 + 报告页所需的全部统计（一次查询，可按儿童过滤）。"""
     db = SessionLocal()
     try:
-        sessions = db.query(models.TrainingSession).all()
+        q = db.query(models.TrainingSession)
+        if child_id is not None:
+            q = q.filter(models.TrainingSession.child_id == child_id)
+        sessions = q.all()
         total = len(sessions)
         completed = sum(1 for s in sessions if s.completed)
         completion_rate = round(completed / total, 3) if total else 0.0
@@ -62,6 +66,9 @@ def dashboard_stats():
                 {"day": k, "count": v["count"], "done": v["done"]}
                 for k, v in sorted(by_day.items())],
             "suggestions": suggestions,
+            "interpretation": _interpret(total, completion_rate, pdi,
+                                          indep_rate, unc_ratio),
+            "plan": build_plan(child_id),
         }
     finally:
         db.close()
@@ -131,3 +138,82 @@ def _as_decision_rows(sessions):
 
 def _iso(dt):
     return dt.isoformat() if dt else None
+
+
+def session_report(session_id):
+    """单次训练报告：训练结束后反馈给家长的详细分析。"""
+    db = SessionLocal()
+    try:
+        s = db.get(models.TrainingSession, session_id)
+        if not s:
+            return None
+        task = db.get(models.TrainingTask, s.task_id) if s.task_id else None
+        scene = db.get(models.SceneInfo, s.scene_id) if s.scene_id else None
+        child = db.get(models.ChildInfo, s.child_id) if s.child_id else None
+        steps = (db.query(models.ActionRecord)
+                 .filter_by(session_id=session_id)
+                 .order_by(models.ActionRecord.step_order).all())
+
+        prompt_labels = ["独立", "视觉", "语音", "示范", "家长协助"]
+        prompt_label = (prompt_labels[s.prompt_level]
+                        if s.prompt_level is not None and 0 <= s.prompt_level < 5
+                        else None)
+
+        return {
+            "session_id": s.id,
+            "task_name": task.name if task else None,
+            "task_type": task.type if task else None,
+            "scene": scene.name if scene else None,
+            "child": child.nickname if child else None,
+            "prompt_level": s.prompt_level,
+            "prompt_label": prompt_label,
+            "completed": s.completed,
+            "elapsed_sec": s.elapsed_sec,
+            "steps": [
+                {"order": st.step_order, "name": st.step_name,
+                 "detected": st.detected, "confidence": st.confidence}
+                for st in steps
+            ],
+            "evaluation": _evaluate_session(s, prompt_label),
+            "advice": _next_advice(s, task),
+        }
+    finally:
+        db.close()
+
+
+def _interpret(total, completion_rate, pdi, indep_rate, unc_ratio):
+    if total == 0:
+        return "暂无训练记录，完成首次训练后将自动生成专业分析与建议。"
+    parts = []
+    if completion_rate >= 0.8:
+        parts.append(f"总体完成率 {completion_rate*100:.0f}%，整体表现良好；")
+    elif completion_rate >= 0.5:
+        parts.append(f"总体完成率 {completion_rate*100:.0f}%，处于中等水平，仍有提升空间；")
+    else:
+        parts.append(f"总体完成率 {completion_rate*100:.0f}%，偏低，建议适当降低任务难度；")
+
+    if pdi <= 1.0:
+        parts.append("提示依赖指数（PDI）较低，孩子独立性较好；")
+    elif pdi <= 2.5:
+        parts.append("提示依赖指数（PDI）中等，仍需一定辅助；")
+    else:
+        parts.append("提示依赖指数（PDI）偏高，较依赖辅助，建议逐步减少提示；")
+
+    parts.append(f"独立完成率 {indep_rate*100:.0f}%。")
+    if unc_ratio > 0.3:
+        parts.append("识别不确定事件偏多，建议改善光线或调整摄像头角度。")
+    return "".join(parts)
+
+
+def _evaluate_session(s, prompt_label):
+    if s.completed:
+        if s.prompt_level == 0:
+            return "本次训练孩子能够完全独立完成，表现出色，能力正在稳步提升。"
+        return f"本次训练在「{prompt_label}」提示下完成，建议后续逐步减少辅助，向独立完成努力。"
+    return "本次训练未能完成，建议适当降低难度或增加辅助，先帮助孩子建立成功体验与信心。"
+
+
+def _next_advice(s, task):
+    if s.completed:
+        return "建议保持当前难度继续巩固，并逐步减少提示辅助，向更高难度进阶。"
+    return "建议降低一档难度或提高提示等级，帮助孩子先获得成功体验，再逐步提升。"

@@ -20,7 +20,8 @@ import time
 
 import cv2
 
-from object_detector import load_model, detect_objects, draw_detections
+from object_detector import (load_model, detect_objects, draw_detections,
+                             has_custom_model, load_custom_model)
 from interaction_detector import (InteractionDetector, hand_center,
                                   HAND_POINTS_L, HAND_POINTS_R)
 from behavior_sequence import BehaviorFSM
@@ -139,6 +140,11 @@ def main():
         latest["result"] = result
 
     load_model()
+    # 家庭个性化：加载目标物/放置目标对应的自定义模型（可多个并存）
+    for _cname in list(CONTAINER_NAMES) + [TARGET_NAME]:
+        if has_custom_model(_cname):
+            if load_custom_model(_cname):
+                print(f"已加载家庭自定义模型: {_cname}")
     options = vision.PoseLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=POSE_MODEL,
                                  delegate=BaseOptions.Delegate.CPU),

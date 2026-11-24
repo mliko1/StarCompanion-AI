@@ -8,6 +8,9 @@ export default {
   tasks: () => http.get('/api/tasks'),
   scenes: () => http.get('/api/scenes'),
   children: () => http.get('/api/children'),
+  createChild: (payload) => http.post('/api/children', payload),
+  updateChild: (id, payload) => http.put(`/api/children/${id}`, payload),
+  deleteChild: (id) => http.delete(`/api/children/${id}`),
   plan: () => http.get('/api/plan'),
   // 训练控制
   startTraining: (payload) => http.post('/api/training/start', payload),
@@ -18,8 +21,9 @@ export default {
   // 摄像头
   cameraStatus: () => http.get('/api/camera/status'),
   // 报告
-  dashboard: () => http.get('/api/reports/dashboard'),
+  dashboard: (childId) => http.get('/api/reports/dashboard', { params: { child_id: childId } }),
   sessions: (limit = 20) => http.get('/api/reports/sessions', { params: { limit } }),
+  sessionReport: (sessionId) => http.get(`/api/reports/session/${sessionId}`),
   vision: (pendingOnly = false) =>
     http.get('/api/reports/vision', { params: { pending_only: pendingOnly } }),
   submitReview: (payload) => http.post('/api/reports/review', payload),
@@ -27,4 +31,10 @@ export default {
   personalProfiles: (childId) =>
     http.get('/api/personalization/profiles', { params: { child_id: childId } }),
   confirmHand: (payload) => http.post('/api/personalization/confirm_hand', payload),
+  // 家庭校准（镜头前自动采集 + 自动训练到收敛）
+  calibrationModels: () => http.get('/api/calibration/models'),
+  calibrationStatus: () => http.get('/api/calibration/status'),
+  startCalibration: (payload) => http.post('/api/calibration/collect/start', payload),
+  finishCalibration: () => http.post('/api/calibration/finish'),
+  stopCalibration: () => http.post('/api/calibration/stop'),
 }

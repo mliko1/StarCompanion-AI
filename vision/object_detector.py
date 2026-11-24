@@ -4,9 +4,9 @@
 基于 ultralytics YOLO yolo11n（COCO 预训练 80 类，CPU 可实时运行）。
 
 诚实说明（重要）：
-1. 本模块只是"调用预训练模型"，没有任何自训练成分；
-2. COCO 80 类中没有"收纳盒"这一类，本程序不支持识别收纳盒。
-   演示任务中请用 COCO 能识别的物品替代（如碗 bowl、书 book）；
+1. 默认使用 COCO 预训练模型，本身不含自训练成分；
+2. COCO 80 类与 MediaPipe 姿态无法识别的任意物品，都可通过网页端「校准」
+   页训练出 custom_<name>.pt，再通过 load_custom_model() 作为第二检测源加载；
 3. 支持的常用目标类别见 TARGET_CLASSES，可在运行时配置。
 
 运行方式（在项目根目录）：
@@ -14,10 +14,22 @@
 按 q 键退出。
 """
 
+import locale
+import os
+import sys
 import time
 
 import cv2
 from ultralytics import YOLO
+
+# ultralytics 导入后会把 sys.stdout 改成 UTF-8，导致 Windows 控制台/子进程以 GBK
+# 读取中文输出时报 UnicodeDecodeError。这里恢复为系统默认编码，保证中文 print 正常。
+try:
+    _enc = locale.getpreferredencoding(False) or "utf-8"
+    sys.stdout.reconfigure(encoding=_enc, errors="replace")
+    sys.stderr.reconfigure(encoding=_enc, errors="replace")
+except Exception:
+    pass
 
 MODEL_PATH = "vision/models/yolo11n.pt"
 
@@ -37,6 +49,11 @@ CONF_THRESHOLD = 0.45   # 置信度阈值：低于此值的检测不采信
 MODEL = None
 CLASS_NAMES = {}
 
+# 家庭自定义模型作为「第二检测源」：与 COCO 模型并存，用于识别 COCO / MediaPipe
+# 无法识别的任意个性化物品（由网页端「校准」页采集训练得到）。支持多个并存。
+CUSTOM_MODELS = {}        # {class_name: YOLO 模型}
+CUSTOM_CLASS_NAMES = {}   # {class_name: {id: name}}
+
 
 def load_model(model_path=MODEL_PATH):
     """加载 YOLO 模型（首次运行会自动下载 yolo11n.pt，约5MB）。"""
@@ -46,11 +63,64 @@ def load_model(model_path=MODEL_PATH):
     return MODEL
 
 
+def has_custom_model(class_name):
+    """判断是否存在家庭校准模型 custom_<class_name>.pt。"""
+    path = os.path.join("vision", "models", f"custom_{class_name}.pt")
+    return os.path.exists(path)
+
+
+def list_custom_models():
+    """列出所有已训练的家庭自定义模型类名（扫描 vision/models/custom_*.pt）。"""
+    models_dir = os.path.join("vision", "models")
+    if not os.path.isdir(models_dir):
+        return []
+    names = []
+    for fn in sorted(os.listdir(models_dir)):
+        if fn.startswith("custom_") and fn.endswith(".pt"):
+            names.append(fn[len("custom_"):-len(".pt")])
+    return names
+
+
+def load_custom_model(class_name):
+    """加载家庭校准后的自定义模型 custom_<class_name>.pt，作为第二检测源。
+
+    成功返回 True。支持多个自定义模型并存（例如玩具与收纳盒各一个），
+    detect_objects() 会同时返回 COCO 与所有已加载自定义模型的检测结果。
+    """
+    global CUSTOM_MODELS, CUSTOM_CLASS_NAMES
+    path = os.path.join("vision", "models", f"custom_{class_name}.pt")
+    if not os.path.exists(path):
+        return False
+    model = YOLO(path)
+    CUSTOM_MODELS[class_name] = model
+    CUSTOM_CLASS_NAMES[class_name] = model.names
+    return True
+
+
+def _collect(model, class_names, frame, conf, ids=None):
+    """运行一次模型推理，收集标准化检测结果（像素坐标）。"""
+    results = model.predict(frame, conf=conf, classes=ids,
+                            imgsz=480, verbose=False)
+    detections = []
+    for r in results:
+        for box in r.boxes:
+            x1, y1, x2, y2 = [float(v) for v in box.xyxy[0]]
+            detections.append({
+                "name": class_names[int(box.cls[0])],
+                "bbox": (x1, y1, x2, y2),
+                "confidence": float(box.conf[0]),
+                "center": ((x1 + x2) / 2, (y1 + y2) / 2),
+                "area": (x2 - x1) * (y2 - y1),
+            })
+    return detections
+
+
 def detect_objects(frame, conf=CONF_THRESHOLD, classes=None):
     """对单帧图像做物品检测。
 
     输入: frame - OpenCV BGR 图像（原始帧，非镜像）
     输出: [ {name, bbox, confidence, center, area}, ... ]，像素坐标。
+    若已加载家庭自定义模型（load_custom_model），会同时返回该模型的检测结果。
     """
     if MODEL is None:
         load_model()
@@ -58,19 +128,10 @@ def detect_objects(frame, conf=CONF_THRESHOLD, classes=None):
         classes = TARGET_CLASSES
     ids = [i for i, n in CLASS_NAMES.items() if n in classes]
 
-    results = MODEL.predict(frame, conf=conf, classes=ids,
-                            imgsz=480, verbose=False)
-    detections = []
-    for r in results:
-        for box in r.boxes:
-            x1, y1, x2, y2 = [float(v) for v in box.xyxy[0]]
-            detections.append({
-                "name": CLASS_NAMES[int(box.cls[0])],
-                "bbox": (x1, y1, x2, y2),
-                "confidence": float(box.conf[0]),
-                "center": ((x1 + x2) / 2, (y1 + y2) / 2),
-                "area": (x2 - x1) * (y2 - y1),
-            })
+    detections = _collect(MODEL, CLASS_NAMES, frame, conf, ids)
+    # 第二检测源：家庭自定义模型（识别 COCO / MediaPipe 无法识别的任意物品）
+    for _cls, _model in CUSTOM_MODELS.items():
+        detections += _collect(_model, CUSTOM_CLASS_NAMES[_cls], frame, conf)
     return detections
 
 

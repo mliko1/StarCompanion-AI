@@ -2,8 +2,18 @@
   <div>
     <div class="page-head">
       <h2 class="page-title">训练报告</h2>
-      <el-button size="small" round @click="load">刷新数据</el-button>
+      <div class="head-actions">
+        <el-select v-model="childId" placeholder="全部儿童" clearable style="width: 170px" @change="load">
+          <el-option v-for="c in children" :key="c.id" :label="c.nickname" :value="c.id" />
+        </el-select>
+        <el-button size="small" round @click="load">刷新数据</el-button>
+      </div>
     </div>
+
+    <el-card shadow="never" class="block">
+      <template #header>专业分析解读</template>
+      <p class="interpretation">{{ interpretation || '正在加载…' }}</p>
+    </el-card>
 
     <el-row :gutter="16">
       <el-col :span="12" :md="6" v-for="card in cards" :key="card.label">
@@ -24,9 +34,30 @@
     </div>
 
     <el-card shadow="never" class="block">
+      <template #header>后续训练计划推荐（根据表现自动调整难度）</template>
+      <el-table :data="plan" size="small">
+        <el-table-column type="index" label="#" width="50" />
+        <el-table-column prop="name" label="训练任务" />
+        <el-table-column label="类型" width="90">
+          <template #default="{ row }">
+            <el-tag :type="kindType(row.kind)" size="small">{{ kindText(row.kind) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="难度" width="100">
+          <template #default="{ row }">
+            <span class="stars">{{ '★'.repeat(row.difficulty || 1) }}<span class="stars-off">{{ '★'.repeat(Math.max(0, 3 - (row.difficulty || 1))) }}</span></span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="reason" label="推荐理由" />
+      </el-table>
+      <div v-if="!plan.length" class="muted">暂无足够数据生成计划，完成几次训练后会自动生成</div>
+    </el-card>
+
+    <el-card shadow="never" class="block">
       <template #header>训练记录明细</template>
       <el-table :data="sessions" size="small">
         <el-table-column prop="task_name" label="任务" />
+        <el-table-column prop="child" label="儿童" width="90" />
         <el-table-column prop="scene" label="场景" width="90" />
         <el-table-column label="提示等级" width="100">
           <template #default="{ row }">{{ promptLabels[row.prompt_level] || row.prompt_level }}</template>
@@ -52,10 +83,20 @@ import LineIcon from '../components/LineIcon.vue'
 
 const data = ref(null)
 const sessions = ref([])
+const children = ref([])
+const childId = ref(null)
+const plan = ref([])
 const promptChart = ref(null)
 const sceneChart = ref(null)
 const trendChart = ref(null)
 const promptLabels = ['独立', '视觉', '语音', '示范', '家长协助']
+
+const KIND_TEXT = { strengthen: '需加强', consolidate: '巩固', new: '新动作', review: '复习' }
+const KIND_TYPE = { strengthen: 'danger', consolidate: 'warning', new: 'primary', review: 'info' }
+function kindText(k) { return KIND_TEXT[k] || k }
+function kindType(k) { return KIND_TYPE[k] || 'info' }
+
+const interpretation = computed(() => data.value ? data.value.interpretation : '')
 
 const cards = computed(() => {
   if (!data.value) return []
@@ -69,11 +110,19 @@ const cards = computed(() => {
 })
 
 async function load() {
-  const [d, s] = await Promise.all([api.dashboard(), api.sessions(50)])
+  const [d, s] = await Promise.all([api.dashboard(childId.value), api.sessions(50)])
   data.value = d.data
+  plan.value = d.data.plan || []
   sessions.value = s.data.sessions
   await nextTick()
   renderCharts(d.data)
+}
+
+async function loadChildren() {
+  try {
+    const c = await api.children()
+    children.value = c.data.children
+  } catch (e) { console.warn(e) }
 }
 
 const _charts = {}
@@ -127,13 +176,20 @@ function renderCharts(d) {
   }
 }
 
-onMounted(load)
-setInterval(load, 5000)
+onMounted(async () => {
+  await loadChildren()
+  await load()
+})
+setInterval(load, 10000)
 </script>
 
 <style scoped>
-.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
 .page-head .page-title { margin-bottom: 0; }
+.head-actions { display: flex; align-items: center; gap: 10px; }
+.interpretation { color: #3f4d63; line-height: 1.9; font-size: 14px; margin: 0; }
+.stars { color: #e8a13c; letter-spacing: 1px; }
+.stars-off { color: #d9dee8; }
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
 .chart {
   background: rgba(255, 255, 255, 0.86);

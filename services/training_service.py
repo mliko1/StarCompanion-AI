@@ -65,6 +65,16 @@ _NEXT_STEP = {
 }
 
 
+def _custom_model_classes():
+    """扫描已训练的家庭自定义模型类名（vision/models/custom_*.pt）。"""
+    models_dir = os.path.join(ROOT, "vision", "models")
+    if not os.path.isdir(models_dir):
+        return []
+    return [fn[len("custom_"):-len(".pt")]
+            for fn in sorted(os.listdir(models_dir))
+            if fn.startswith("custom_") and fn.endswith(".pt")]
+
+
 class TrainingService:
     _instance = None
     _class_lock = threading.Lock()
@@ -159,8 +169,13 @@ class TrainingService:
         # skill 任务：加载 YOLO 模型并初始化 FSM
         if task.type == "skill":
             target = self.task_params.get("target", "bottle")
-            containers = self.task_params.get(
-                "containers", ["book", "cup", "remote", "bowl"])
+            containers = list(self.task_params.get(
+                "containers", ["book", "cup", "remote", "bowl"]))
+            # 自动纳入已训练的家庭自定义模型（custom_<name>.pt -> name）
+            # 作为放置目标候选，训练完成即可用，无需手动改配置
+            for _cls in _custom_model_classes():
+                if _cls not in containers:
+                    containers.append(_cls)
             self.skill = {
                 "fsm": BehaviorFSM(
                     timeout_scale=self.effective.get("hold_sec_scale", 1.0)),
@@ -278,8 +293,13 @@ class TrainingService:
 
         if task.type == "skill":
             target = self.task_params.get("target", "bottle")
-            containers = self.task_params.get(
-                "containers", ["book", "cup", "remote", "bowl"])
+            containers = list(self.task_params.get(
+                "containers", ["book", "cup", "remote", "bowl"]))
+            # 自动纳入已训练的家庭自定义模型（custom_<name>.pt -> name）
+            # 作为放置目标候选，训练完成即可用，无需手动改配置
+            for _cls in _custom_model_classes():
+                if _cls not in containers:
+                    containers.append(_cls)
             self.skill = {
                 "fsm": BehaviorFSM(
                     timeout_scale=self.effective.get("hold_sec_scale", 1.0)),
@@ -376,6 +396,9 @@ class TrainingService:
         return {"ok": True, "msg": "训练已结束", "camera": camera_status}
 
     def status(self):
+        containers = None
+        if self.task and self.task.type == "skill" and self.skill:
+            containers = self.skill["containers"]
         return {
             "state": self.state,
             "session_id": self.session_id,
@@ -384,6 +407,8 @@ class TrainingService:
             "task_type": self.task.type if self.task else None,
             "target_action": self.task_params.get("action_id") if self.task_params else None,
             "target_object": self.task_params.get("target") if self.task_params else None,
+            "containers": containers,
+            "custom_models": _custom_model_classes(),
             "detected_now": self.detected_now,
             "current_action": self.current_action,
             "current_step": self.current_step,
@@ -478,6 +503,11 @@ class TrainingService:
             self._finish_skill(completed=False)
             return
         skill = self.skill
+        # 家庭个性化：加载目标物/放置目标对应的自定义模型（可多个并存）
+        for _cname in list(skill["containers"]) + [skill["target"]]:
+            if object_detector.has_custom_model(_cname):
+                if object_detector.load_custom_model(_cname):
+                    print(f"[skill] 已加载家庭自定义模型: {_cname}")
         fsm = skill["fsm"]
         while not self._stop_flag.is_set():
             if self._pause_flag.is_set():
