@@ -230,3 +230,24 @@ class PersonalProfile(Base):
     status = Column(String(16), default="pending")       # pending / building / stable
     confidence = Column(Float, default=0.0)
     updated_at = Column(DateTime, default=now, onupdate=now)
+
+
+class TrainingReport(Base):
+    """训练结束后生成的个体化专业报告（每场训练一份，长期留存可查历史）。
+
+    报告 JSON 为生成时的完整快照，不随后续识别结果变化；
+    这样家长在任意时间查看的都是当场训练的原始结论，可追溯。
+    """
+    __tablename__ = "training_report"
+    __table_args__ = (
+        UniqueConstraint("session_id", name="uq_training_report_session"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(Integer, ForeignKey("training_session.id"), nullable=False)
+    child_id = Column(Integer, ForeignKey("child_profile.id"))
+    session_code = Column(String(64))
+    task_name = Column(String(128))
+    report_date = Column(String(16))       # YYYY-MM-DD，便于按日查询
+    payload = Column(JSON, nullable=False)  # 完整报告快照
+    created_at = Column(DateTime, default=now)

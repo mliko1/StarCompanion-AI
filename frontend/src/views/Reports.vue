@@ -17,7 +17,38 @@
           <el-button type="primary" size="small" round @click="openLastReport">查看最近训练报告</el-button>
         </div>
       </template>
-      <p class="interpretation">训练结束后自动生成完整分析报告：目标基线/当前/下一目标对照、领域能力现状、步骤与数据质量、后续任务难度建议及家长反馈。点击右上角按钮查看，或在下方记录中点「查看报告」。</p>
+      <p class="interpretation">训练结束后自动生成完整分析报告：目标基线/当前/下一目标对照、领域能力现状、步骤与数据质量、近期趋势、提示依赖、家庭延伸建议、后续任务难度及家长反馈。点击右上角按钮查看，或在下方记录中点「查看报告」。</p>
+    </el-card>
+
+    <el-card shadow="never" class="block">
+      <template #header>
+        <div class="card-head">
+          <span>历史训练报告（每次训练一份，可查询）</span>
+          <div class="history-filter">
+            <el-select v-model="historyChild" placeholder="全部儿童" size="small" clearable style="width:130px">
+              <el-option v-for="c in children" :key="c.id" :label="c.nickname" :value="c.id" />
+            </el-select>
+            <el-date-picker v-model="historyRange" type="daterange" size="small" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:240px" />
+            <el-button size="small" @click="loadHistory">查询</el-button>
+          </div>
+        </div>
+      </template>
+      <el-table :data="historyReports" size="small" border v-loading="historyLoading" max-height="360">
+        <el-table-column prop="report_date" label="报告日期" width="110" />
+        <el-table-column prop="child_id" label="儿童" width="90">
+          <template #default="{ row }">{{ childName(row.child_id) }}</template>
+        </el-table-column>
+        <el-table-column prop="task_name" label="训练任务" min-width="130" />
+        <el-table-column label="完成情况" width="110">
+          <template #default="{ row }"><el-tag size="small" :type="row.completed ? 'success' : 'warning'">{{ row.score_label || '—' }}</el-tag></template>
+        </el-table-column>
+        <el-table-column prop="elapsed_sec" label="用时(秒)" width="90" />
+        <el-table-column prop="created_at" label="生成时间" min-width="150" />
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }"><el-button size="small" link type="primary" @click="openSaved(row.report_id)">查看报告</el-button></template>
+        </el-table-column>
+      </el-table>
+      <div v-if="!historyReports.length && !historyLoading" class="empty-hint">暂无历史报告，完成一次训练后自动生成。</div>
     </el-card>
 
     <el-card shadow="never" class="block">
@@ -98,7 +129,12 @@
           <el-tag :type="report.summary.completed ? 'success' : 'warning'" effect="dark">{{ report.summary.score_label }}</el-tag>
         </div>
 
-        <el-divider content-position="left">一、目标完成情况（基线 → 当前 → 目标）</el-divider>
+        <el-divider content-position="left">一、本次训练要点速览</el-divider>
+        <ul class="pr-list highlights">
+          <li v-for="(h, i) in report.highlights" :key="i">{{ h }}</li>
+        </ul>
+
+        <el-divider content-position="left">二、目标完成情况（基线 → 当前 → 目标）</el-divider>
         <el-table :data="[report.goal_progress]" size="small" border class="pr-table">
           <el-table-column prop="goal" label="训练目标" min-width="110" />
           <el-table-column label="基线" min-width="130">
@@ -108,18 +144,34 @@
           <el-table-column prop="target" label="下一阶段目标" min-width="190" />
         </el-table>
 
-        <el-divider content-position="left">二、领域能力现状（{{ report.ability.dimension }}）</el-divider>
+        <el-divider content-position="left">三、领域能力现状（{{ report.ability.dimension }}）</el-divider>
         <div class="pr-grid">
           <div class="pr-card ok"><b>优势 / 亮点</b><p>{{ report.ability.strength }}</p></div>
           <div class="pr-card warn"><b>待支持项</b><p>{{ report.ability.weakness }}</p></div>
         </div>
         <ul class="pr-list"><li v-for="(s, i) in report.ability.support_needed" :key="i">{{ s }}</li></ul>
 
-        <el-divider content-position="left">三、步骤完成与数据说明</el-divider>
-        <p class="pr-text">共 {{ report.steps.total }} 个步骤，独立完成 {{ report.steps.completed }} 个<span v-if="report.steps.pending_names.length">；待加强：{{ report.steps.pending_names.join('、') }}</span>。</p>
+        <el-divider content-position="left">四、步骤完成明细与数据说明</el-divider>
+        <el-table :data="report.step_details" size="small" border class="pr-table">
+          <el-table-column prop="order" label="#" width="42" />
+          <el-table-column prop="name" label="步骤" min-width="140" />
+          <el-table-column label="完成情况" width="100">
+            <template #default="{ row }"><el-tag size="small" :type="row.completed ? 'success' : 'warning'">{{ row.completed ? '完成' : '未完成' }}</el-tag></template>
+          </el-table-column>
+          <el-table-column prop="confidence" label="置信度" width="90" />
+        </el-table>
         <el-alert :type="report.data_quality.level === 'good' ? 'success' : 'warning'" :closable="false" :title="report.data_quality.note" class="pr-alert" />
 
-        <el-divider content-position="left">四、后续训练任务与难度建议</el-divider>
+        <el-divider content-position="left">五、近期趋势与提示依赖</el-divider>
+        <div class="pr-grid">
+          <div class="pr-card ok"><b>近期趋势</b><p>{{ report.trend.summary }}</p><p class="pr-mini">最近 5 次完成 {{ report.trend.recent_completion }}</p></div>
+          <div class="pr-card warn"><b>提示依赖度 PDI {{ report.prompt_dependency.pdi }}</b><p>{{ report.prompt_dependency.comment }}</p></div>
+        </div>
+
+        <el-divider content-position="left">六、家庭延伸训练建议</el-divider>
+        <ul class="pr-list"><li v-for="(t, i) in report.home_tips" :key="i">{{ t }}</li></ul>
+
+        <el-divider content-position="left">七、后续训练任务与难度建议</el-divider>
         <el-table :data="report.next_plan" size="small" border class="pr-table">
           <el-table-column type="index" label="#" width="42" />
           <el-table-column prop="name" label="任务" min-width="110" />
@@ -132,7 +184,7 @@
           <el-table-column prop="prompt_suggestion" label="提示建议" min-width="180" />
         </el-table>
 
-        <el-divider content-position="left">五、家长反馈（可选）</el-divider>
+        <el-divider content-position="left">八、家长反馈（可选）</el-divider>
         <el-form label-position="top" size="small">
           <el-form-item label="今天在家的观察">
             <el-input v-model="report.parent_feedback.observation" type="textarea" :rows="2" placeholder="如：孩子主动模仿了动作，情绪很好" />
@@ -171,6 +223,10 @@ const childId = ref(null)
 const plan = ref([])
 const reportVisible = ref(false)
 const report = ref(null)
+const historyReports = ref([])
+const historyChild = ref(null)
+const historyRange = ref(null)
+const historyLoading = ref(false)
 const promptChart = ref(null)
 const sceneChart = ref(null)
 const trendChart = ref(null)
@@ -216,6 +272,33 @@ async function openReport(sessionId) {
     report.value = r.data
     reportVisible.value = true
   } catch (e) { console.warn(e); ElMessage.warning('专业报告加载失败') }
+}
+
+function childName(id) {
+  const c = children.value.find(c => c.id === id)
+  return c ? c.nickname : (id ? `#${id}` : '—')
+}
+
+async function loadHistory() {
+  historyLoading.value = true
+  try {
+    const params = {}
+    if (historyChild.value) params.child_id = historyChild.value
+    if (historyRange.value && historyRange.value.length === 2) {
+      params.date_from = historyRange.value[0]
+      params.date_to = historyRange.value[1]
+    }
+    const r = await api.reportHistory(params)
+    historyReports.value = r.data.reports
+  } catch (e) { console.warn(e) } finally { historyLoading.value = false }
+}
+
+async function openSaved(reportId) {
+  try {
+    const r = await api.savedReport(reportId)
+    report.value = r.data
+    reportVisible.value = true
+  } catch (e) { console.warn(e); ElMessage.warning('报告加载失败') }
 }
 
 async function openLastReport() {
@@ -289,6 +372,7 @@ function renderCharts(d) {
 onMounted(async () => {
   await loadChildren()
   await load()
+  await loadHistory()
 })
 setInterval(load, 10000)
 </script>
@@ -312,6 +396,9 @@ setInterval(load, 10000)
 .wide { grid-column: 1 / -1; }
 @media (max-width: 768px) { .charts { grid-template-columns: 1fr; } .wide { grid-column: 1; } }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.history-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.empty-hint { color: #a3a9bd; font-size: 12px; padding: 12px 0; text-align: center; }
+.highlights { background: #f5f8ff; border-radius: 8px; padding: 10px 14px 10px 30px; }
 .pr-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .pr-title { font-size: 19px; font-weight: 700; color: #1f2430; }
 .pr-sub { color: #8b93a5; font-size: 12px; margin-top: 5px; }

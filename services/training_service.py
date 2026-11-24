@@ -272,6 +272,7 @@ class TrainingService:
                               details={"results": self.plan_results}))
         tts.speak(f"今天的训练结束啦，完成了 {done_count} 个动作，真棒！")
         self.plan_mode = False
+        # 方案模式：每个动作是一个独立 session，已在 _finish 中各自生成报告
 
     def _setup_single(self, task, child_id, scene_id, prompt_level, hold_sec):
         """为单个动作创建 session 并初始化状态（单任务模式与方案模式共用）。"""
@@ -647,6 +648,16 @@ class TrainingService:
         self.message = "训练完成" if completed else "训练已结束"
         if completed:
             tts.speak("太棒啦，任务完成咯！")
+        # 每场训练生成一份当日全新报告（落库快照，重复调用不会覆盖）
+        if self.session_id:
+            self._generate_report()
+
+    def _generate_report(self):
+        try:
+            from services.professional_report import generate_and_save
+            generate_and_save(self.session_id)
+        except Exception as e:
+            print(f"[report] 自动生成报告失败: {e}")
 
     def _finish_skill(self, completed):
         self.state = "done" if completed else "aborted"
@@ -670,6 +681,8 @@ class TrainingService:
         self.message = "训练完成" if completed else "训练已结束"
         if completed:
             tts.speak("太棒啦，任务完成咯！")
+        if self.session_id:
+            self._generate_report()
 
 
 # 全局单例

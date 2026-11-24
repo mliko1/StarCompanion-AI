@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """报告 / 统计 / 人工确认接口。"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from database import crud
@@ -30,6 +30,24 @@ def professional_report(session_id: int):
     """训练结束后的个体化专业报告（给家长查看）。"""
     from services.professional_report import build_professional_report
     return build_professional_report(session_id)
+
+
+@router.get("/history")
+def report_history(child_id: int | None = None, date_from: str | None = None,
+                   date_to: str | None = None, limit: int = 100):
+    """历史训练报告列表（可按儿童与日期范围筛选）。"""
+    from services.professional_report import list_saved
+    return {"reports": list_saved(child_id, date_from, date_to, limit)}
+
+
+@router.get("/saved/{report_id}")
+def saved_report(report_id: int):
+    """读取已保存的报告快照（训练当场生成的原文）。"""
+    from services.professional_report import get_saved
+    r = get_saved(report_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    return r
 
 
 @router.get("/latest_session")

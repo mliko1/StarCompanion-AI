@@ -168,6 +168,64 @@ def build_professional_report(session_id):
                 "prompt_suggestion": "保持当前设置，继续观察",
             })
 
+        # ---- 扩展分析要点 ----
+        # 历史趋势（近 10 次完成率 / 提示等级走势）
+        history_points = []
+        for h in reversed(history):
+            history_points.append({
+                "date": _fmt(h.start_time),
+                "completed": bool(h.completed),
+                "prompt_level": h.prompt_level,
+                "score": _score(h.completed, h.prompt_level or 0),
+            })
+        recent = history_points[-5:]
+        trend = "数据不足，完成 3 次以上可观察趋势"
+        if len(recent) >= 3:
+            first = sum(1 for p in recent[:len(recent)//2] if p["completed"])
+            last = sum(1 for p in recent[len(recent)//2:] if p["completed"])
+            if last > first:
+                trend = "近期完成率呈上升趋势，训练效果正在显现"
+            elif last < first:
+                trend = "近期完成率有所波动下降，建议降低难度或增加辅助"
+            else:
+                trend = "近期表现基本稳定，可尝试小幅提升难度或泛化场景"
+
+        # 提示依赖度分析（PDI 简化口径：提示等级 / 4）
+        pdi = round((s.prompt_level or 0) / 4, 2)
+        if pdi <= 0.25:
+            pdi_comment = "独立性良好，能以极少辅助完成任务"
+        elif pdi <= 0.5:
+            pdi_comment = "轻度依赖提示，建议逐步撤除视觉/语言辅助"
+        elif pdi <= 0.75:
+            pdi_comment = "提示依赖较明显，建议先稳定完成再减少辅助"
+        else:
+            pdi_comment = "高度依赖家长协助，建议从降低难度入手建立成功体验"
+
+        # 分步骤表现明细
+        step_details = [{
+            "order": (st.step_order or 0) + 1,
+            "name": st.step_name or "—",
+            "completed": bool(st.detected),
+            "confidence": round(st.confidence or 0, 2),
+        } for st in steps]
+        if not step_details:
+            step_details = [{
+                "order": 1, "name": task.name if task else "目标动作",
+                "completed": bool(s.completed),
+                "confidence": 1.0 if s.completed else 0.0,
+            }]
+
+        # 家长在家观察要点（可操作建议，不虚构能力）
+        home_tips = []
+        if pdi > 0.5:
+            home_tips.append("在家练习时先给一步提示，等孩子完成后再给下一步，避免连续指令")
+        if not s.completed:
+            home_tips.append("把任务拆成更小的步骤，先练习最容易成功的一步，累计成功体验")
+        else:
+            home_tips.append("用同样的口令和动作在家复现一次，帮助把课堂技能迁移到生活")
+        home_tips.append("记录孩子今天主动尝试的次数，哪怕未完成也值得肯定")
+        home_tips.append("训练时长每次 5~10 分钟为宜，孩子情绪不佳时暂停，不强迫")
+
         age = None
         if child and child.birth_year:
             age = datetime.date.today().year - child.birth_year
@@ -219,6 +277,28 @@ def build_professional_report(session_id):
             "data_quality": {"level": quality, "note": quality_note,
                              "uncertain_count": uncertain,
                              "reviewed_count": reviewed},
+            "highlights": [
+                f"本次训练{'已独立完成' if s.completed else '在辅助下完成/未独立完成'}，"
+                f"提示等级为「{prompt_label}」",
+                f"用时 {round(s.elapsed_sec or 0, 1)} 秒，完成步骤 {len(done_steps)}/{len(steps) or 1}",
+                trend,
+                pdi_comment,
+            ],
+            "prompt_dependency": {
+                "pdi": pdi,
+                "level": s.prompt_level,
+                "label": prompt_label,
+                "comment": pdi_comment,
+            },
+            "trend": {
+                "summary": trend,
+                "history": history_points,
+                "recent_completion": (
+                    f"{sum(1 for p in recent if p['completed'])}/{len(recent)}"
+                    if recent else "—"),
+            },
+            "step_details": step_details,
+            "home_tips": home_tips,
             "next_plan": next_plan,
             "parent_feedback": {
                 "observation": "",
@@ -231,6 +311,70 @@ def build_professional_report(session_id):
                 "须经专业康复人员审核。"
             ),
         }
+    finally:
+        db.close()
+
+
+def generate_and_save(session_id):
+    """训练结束时调用：生成报告并落库（每场训练一份，重复调用不覆盖）。"""
+    payload = build_professional_report(session_id)
+    if not payload:
+        return None
+    db = SessionLocal()
+    try:
+        exists = (db.query(models.TrainingReport)
+                  .filter_by(session_id=session_id).first())
+        if exists:
+            return exists.id
+        row = models.TrainingReport(
+            session_id=session_id,
+            child_id=(db.get(models.TrainingSession, session_id).child_id),
+            session_code=payload["meta"].get("session_code"),
+            task_name=payload["meta"].get("task"),
+            report_date=datetime.date.today().isoformat(),
+            payload=payload,
+        )
+        db.add(row)
+        db.commit()
+        return row.id
+    finally:
+        db.close()
+
+
+def get_saved(report_id):
+    """读取已保存的报告快照。"""
+    db = SessionLocal()
+    try:
+        row = db.get(models.TrainingReport, report_id)
+        return row.payload if row else None
+    finally:
+        db.close()
+
+
+def list_saved(child_id=None, date_from=None, date_to=None, limit=100):
+    """历史报告列表（可按儿童、日期范围筛选），按生成时间倒序。"""
+    db = SessionLocal()
+    try:
+        q = db.query(models.TrainingReport)
+        if child_id is not None:
+            q = q.filter(models.TrainingReport.child_id == child_id)
+        if date_from:
+            q = q.filter(models.TrainingReport.report_date >= date_from)
+        if date_to:
+            q = q.filter(models.TrainingReport.report_date <= date_to)
+        rows = q.order_by(models.TrainingReport.created_at.desc()).limit(limit).all()
+        return [{
+            "report_id": r.id,
+            "session_id": r.session_id,
+            "child_id": r.child_id,
+            "session_code": r.session_code,
+            "task_name": r.task_name,
+            "report_date": r.report_date,
+            "created_at": r.created_at.isoformat(timespec="seconds") if r.created_at else None,
+            "completed": (r.payload.get("summary") or {}).get("completed"),
+            "score_label": (r.payload.get("summary") or {}).get("score_label"),
+            "elapsed_sec": (r.payload.get("meta") or {}).get("elapsed_sec"),
+        } for r in rows]
     finally:
         db.close()
 

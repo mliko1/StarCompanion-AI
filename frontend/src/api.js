@@ -26,6 +26,8 @@ export default {
   sessionReport: (sessionId) => http.get(`/api/reports/session/${sessionId}`),
   professionalReport: (sessionId) => http.get(`/api/reports/professional/${sessionId}`),
   latestSession: () => http.get('/api/reports/latest_session'),
+  reportHistory: (params) => http.get('/api/reports/history', { params }),
+  savedReport: (reportId) => http.get(`/api/reports/saved/${reportId}`),
   vision: (pendingOnly = false) =>
     http.get('/api/reports/vision', { params: { pending_only: pendingOnly } }),
   submitReview: (payload) => http.post('/api/reports/review', payload),
