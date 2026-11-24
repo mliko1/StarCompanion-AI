@@ -193,9 +193,9 @@ class TrainingService:
 
         # 语音播报指令（异步，不阻塞）
         if task.type == "skill":
-            tts.speak("训练开始，请找到目标玩具")
+            tts.speak("我们开始啦，先找到目标玩具哦")
         else:
-            tts.speak(f"训练开始，请做动作：{task.name}")
+            tts.speak(f"我们开始啦，来做{task.name}吧")
 
         return {"ok": True, "msg": self.message, "session_id": self.session_id,
                 "session_code": session_code}
@@ -244,7 +244,7 @@ class TrainingService:
         self.thread = threading.Thread(target=self._run_plan, daemon=True)
         self.thread.start()
 
-        tts.speak(f"今天共 {len(tasks)} 个训练动作，我们开始吧")
+        tts.speak(f"今天有 {len(tasks)} 个小任务，我们开始吧")
         return {"ok": True, "msg": self.message, "plan_total": len(tasks)}
 
     def _run_plan(self):
@@ -258,7 +258,7 @@ class TrainingService:
                 continue
             self._setup_single(task, self.plan_child_id, self.plan_scene_id,
                                self.plan_prompt_level, self.plan_hold_sec)
-            tts.speak(f"第 {i + 1} 个动作，{task.name}")
+            tts.speak(f"第 {i + 1} 个，{task.name}，准备好咯")
             # 单个动作：练到完成（或中途被停止）
             ok = self._run_action()
             self.plan_results.append({"task_id": tid, "completed": ok})
@@ -439,11 +439,18 @@ class TrainingService:
             self.message = (f"开始训练：{self.task.name}"
                             f"（个体化：{orig_action}→{target_action}）")
         instant = target_action in INSTANT_ACTIONS
-        # clap 用有状态检测器：在单帧规则之上追加拍手骤降防伪（P2）
-        tracker = (action_engine.ActionTracker(
-                       amplitude_scale=amplitude_scale,
-                       speed_scale=speed_scale)
-                   if target_action == "clap" else None)
+        # 所有动作统一用有状态检测器：
+        # - allowed 白名单：训练"举左手"时只检测举左手，摸头等相似动作不参与；
+        # - protect 保护：目标动作不被其他动作的 excludes 压制；
+        # - 稳定性确认：连续几帧命中才算数，避免单帧抖动误记录；
+        # - clap 的骤降防伪由 ActionTracker 内部保留。
+        target_set = {target_action} if target_action else None
+        tracker = action_engine.ActionTracker(
+            amplitude_scale=amplitude_scale,
+            speed_scale=speed_scale,
+            allowed=target_set,
+            protect=target_set,
+        )
         miss_since = None  # 最近一次 miss 的起始时间（用于抖动容差）
         self.action_frames = 0      # 每个动作重新统计命中率（置信度）
         self.action_hits = 0
@@ -461,11 +468,7 @@ class TrainingService:
                 time.sleep(0.05)
                 continue
             try:
-                if tracker is not None:
-                    hits = tracker.detect(lms, now)
-                else:
-                    hits = action_engine.detect_actions(
-                        lms, amplitude_scale=amplitude_scale)
+                hits = tracker.detect(lms, now)
             except Exception:
                 hits = []
             self.current_action = hits[0] if hits else None
@@ -578,9 +581,9 @@ class TrainingService:
             cn = STEP_NAMES_CN.get(step, step)
             nxt = STEP_NAMES_CN.get(_NEXT_STEP.get(step))
             if nxt:
-                tts.speak(f"很好，{cn}完成，接下来{nxt}")
+                tts.speak(f"做得好，{cn}完成啦，接下来{nxt}")
             else:
-                tts.speak(f"很好，{cn}完成")
+                tts.speak(f"做得好，{cn}完成啦")
         skill["prev_completed"] = cur
 
         unc = st.get("uncertain_events") or []
@@ -643,7 +646,7 @@ class TrainingService:
                               details={"completed": completed}))
         self.message = "训练完成" if completed else "训练已结束"
         if completed:
-            tts.speak("太棒了，任务完成！")
+            tts.speak("太棒啦，任务完成咯！")
 
     def _finish_skill(self, completed):
         self.state = "done" if completed else "aborted"
@@ -666,7 +669,7 @@ class TrainingService:
             details={"completed": completed, "steps": self.completed_steps}))
         self.message = "训练完成" if completed else "训练已结束"
         if completed:
-            tts.speak("太棒了，任务完成！")
+            tts.speak("太棒啦，任务完成咯！")
 
 
 # 全局单例

@@ -44,11 +44,12 @@ _OPS = {
     ">=": lambda v, t: v >= t,
 }
 
-# 个体化幅度缩放只作用于这两个「幅度类」特征：
+# 个体化幅度缩放作用于「幅度/伸直程度类」特征：
 #   dy_ratio 肩宽归一化高低比（举手"手腕高出肩"的核心特征）
 #   ratio    距离比（拍手"掌心距/肩宽"的核心特征）
+#   angle    关节夹角（举手"手臂伸直"的核心特征，仅放宽 >/>=，见下）
 # 方向性（dx）与可见性（vis）等特征不做缩放，避免误判。
-AMPLITUDE_FEATURES = {"dy_ratio", "ratio"}
+AMPLITUDE_FEATURES = {"dy_ratio", "ratio", "angle"}
 
 
 def _scaled_val(f, op, val, scale):
@@ -56,8 +57,12 @@ def _scaled_val(f, op, val, scale):
 
     op 为 >/>= 时降低阈值、</<= 时提高阈值，保证 scale<1 更宽松；
     scale=1.0 或非幅度类特征时原样返回（默认行为完全不变）。
+    angle 的 </<=（如"摸头"肘角<130）不缩放，避免把干扰动作一起放宽；
+    只放宽 >/>=（如"举手"肘角>90），适配手臂没完全伸直的孩子。
     """
     if scale == 1.0 or f not in AMPLITUDE_FEATURES:
+        return val
+    if f == "angle" and op in ("<", "<="):
         return val
     if op in ("<", "<="):
         return val / scale
@@ -151,12 +156,16 @@ def load_actions(path=ACTIONS_JSON):
         return json.load(f)["actions"]
 
 
-def _resolve_conflicts(hits, actions):
+def _resolve_conflicts(hits, actions, protect=None):
     """冲突消解：高优先级动作可压制其 excludes 里声明的动作；出现任意
     非 base（非静止姿态）动作时，隐藏所有 base 静止姿态（如"站直"）。
 
+    protect：受保护的动作 id 集合（当前训练目标），任何动作都不得压制它们。
+    解决"孩子做对了目标动作，却被相似动作（如摸头）的 excludes 抹掉"的问题。
+
     返回按 actions 原始顺序排列的 id 列表，保证显示顺序稳定。"""
     keep = set(hits)
+    protected = set(protect or ())
 
     # 1) 按优先级从高到低处理 excludes（单方向压制，避免同时报多个重叠动作）
     ordered = sorted((a for a in actions if a["id"] in keep),
@@ -165,6 +174,8 @@ def _resolve_conflicts(hits, actions):
         if a["id"] not in keep:
             continue
         for ex in a.get("excludes", []):
+            if ex in protected:
+                continue
             keep.discard(ex)
 
     # 2) 只要存在非静止动作，就隐藏静止姿态（站直等）
@@ -175,7 +186,8 @@ def _resolve_conflicts(hits, actions):
     return [a["id"] for a in actions if a["id"] in keep]
 
 
-def detect_actions(lms, actions=None, amplitude_scale=1.0):
+def detect_actions(lms, actions=None, amplitude_scale=1.0,
+                   allowed=None, protect=None):
     """返回命中的所有动作 id 列表。lms 为原始关键点。
 
     规则结构：a["rules"] 是一组条件组（组内 AND，组间 OR）。
@@ -183,13 +195,19 @@ def detect_actions(lms, actions=None, amplitude_scale=1.0):
     命中后再做冲突消解（excludes / 优先级 / base 静止姿态）。
 
     amplitude_scale：个体化幅度缩放，<1 表示孩子动作幅度小，
-    对 dy_ratio/ratio 幅度阈值放宽判定；默认 1.0 不变。
+    对 dy_ratio/ratio/angle(仅 >/>=) 阈值放宽判定；默认 1.0 不变。
+    allowed：动作白名单（id 集合）。训练单个动作时只检测目标动作，
+    从源头避免"摸头"等相似动作抢判定；None 表示全量检测（兼容旧调用）。
+    protect：受保护动作 id 集合，冲突消解时不得被压制。
     """
     if not lms:
         return []
     actions = actions if actions is not None else load_actions()
+    allow_set = set(allowed) if allowed is not None else None
     hits = set()
     for a in actions:
+        if allow_set is not None and a["id"] not in allow_set:
+            continue
         needed = set()
         for group in a["rules"]:
             for c in group:
@@ -202,34 +220,42 @@ def detect_actions(lms, actions=None, amplitude_scale=1.0):
         if any(all(_eval(lms, c, amplitude_scale) for c in group)
                for group in a["rules"]):
             hits.add(a["id"])
-    return _resolve_conflicts(hits, actions)
+    return _resolve_conflicts(hits, actions, protect=protect)
 
 
 class ActionTracker:
-    """有状态动作检测器：detect_actions + 拍手时序防伪（P2）。
+    """有状态动作检测器：detect_actions + 拍手骤降防伪 + 稳定性确认。
 
-    detect_actions 是无状态单帧规则，无法表达"快速骤降"这类时序特征。
-    拍手（clap）是瞬时动作，仅靠单帧"掌心距/肩宽 < 0.55 + 高于胸线"
-    会把手缓慢靠近、整理动作误判为拍手。本类对 clap 追加骤降防伪：
-    只有合拢前 0.35 秒内比例快速骤降（真拍手是快速撞击）才认定命中。
+    - clap 是瞬时动作：追加骤降防伪，只有合拢前 0.35 秒内比例快速骤降
+      才认定命中，避免缓慢靠近被误判为拍手；
+    - 其他动作：连续 stable_frames 帧命中才输出，避免单帧抖动/误触被记录；
+    - allowed 白名单：训练单个动作时只检测目标动作，避免相似动作抢判定；
+    - protect 保护集：目标动作不被其他动作的 excludes 压制。
 
     用法：
-        tracker = ActionTracker()
+        tracker = ActionTracker(allowed={"raise_left"}, protect={"raise_left"})
         hits = tracker.detect(lms, now)   # now 为当前时间戳（秒）
     """
 
-    def __init__(self, actions=None, amplitude_scale=1.0, speed_scale=1.0):
+    def __init__(self, actions=None, amplitude_scale=1.0, speed_scale=1.0,
+                 allowed=None, protect=None, stable_frames=3):
         self.actions = actions if actions is not None else load_actions()
         self.amplitude_scale = amplitude_scale
         self.speed_scale = speed_scale
+        self.allowed = allowed
+        self.protect = protect
+        self.stable_frames = max(1, int(stable_frames))
         self._clap = ClapCounter(speed_scale=speed_scale)
+        self._streak = {}
 
     def reset(self):
         self._clap.reset()
+        self._streak.clear()
 
     def detect(self, lms, now):
         hits = detect_actions(lms, self.actions,
-                              amplitude_scale=self.amplitude_scale)
+                              amplitude_scale=self.amplitude_scale,
+                              allowed=self.allowed, protect=self.protect)
         # 每帧都维护 clap 的 ratio 历史（骤降防伪需要"分开→合拢"的完整
         # 时序，不能只在单帧命中 clap 时才更新，否则高 ratio 入不了历史）。
         contact, ratio = clap_check(lms, self._clap.contact)
@@ -240,4 +266,17 @@ class ActionTracker:
         # clap 命中 = 单帧规则命中 且 骤降防伪通过（真合拢）
         if "clap" in hits and not self._clap.contact:
             hits = [h for h in hits if h != "clap"]
-        return hits
+        # 稳定性确认：非瞬时动作需连续命中 stable_frames 帧才输出，
+        # 避免单帧抖动/误触被当成完成；clap 已有骤降防伪，跳过此步。
+        stable = []
+        for hid in hits:
+            if hid == "clap":
+                stable.append(hid)
+                continue
+            self._streak[hid] = self._streak.get(hid, 0) + 1
+            if self._streak[hid] >= self.stable_frames:
+                stable.append(hid)
+        for hid in list(self._streak):
+            if hid not in hits:
+                del self._streak[hid]
+        return stable

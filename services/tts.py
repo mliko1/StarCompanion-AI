@@ -18,7 +18,9 @@ def _play(text):
     script = (
         "Add-Type -AssemblyName System.Speech;"
         "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
-        "$s.Rate=1;"
+        "try { $s.SelectVoice('Microsoft Huihui Voice') } catch {};"
+        "$s.Rate=-1;"
+        "$s.Volume=100;"
         "$s.Speak('%s')" % safe
     )
     try:
