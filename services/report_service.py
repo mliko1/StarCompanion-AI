@@ -68,7 +68,7 @@ def dashboard_stats(child_id=None):
             "suggestions": suggestions,
             "interpretation": _interpret(total, completion_rate, pdi,
                                           indep_rate, unc_ratio),
-            "plan": build_plan(child_id),
+            "plan": build_plan(child_id)["plan"],
         }
     finally:
         db.close()
