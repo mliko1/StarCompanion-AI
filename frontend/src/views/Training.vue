@@ -1,9 +1,6 @@
 <template>
   <div>
-    <div class="page-head">
-      <h2 class="page-title">训练操作</h2>
-      <el-button size="small" round @click="openLastReport">查看最近训练报告</el-button>
-    </div>
+    <h2 class="page-title">训练操作</h2>
 
     <el-card shadow="never" class="block">
       <template #header>今日推荐训练计划（根据历史完成情况自动生成）</template>
@@ -109,72 +106,6 @@
       <template v-else>尚未开始训练</template>
     </el-card>
 
-    <el-dialog v-model="reportVisible" title="训练分析报告 · 家长反馈" width="760px" top="3vh" class="pr-dialog">
-      <template v-if="report">
-        <div class="pr-head">
-          <div>
-            <div class="pr-title">{{ report.meta.task }} · 个体化训练分析</div>
-            <div class="pr-sub">{{ report.meta.child }}｜{{ report.meta.scene || '未记录场景' }}｜{{ report.meta.start_time }}｜用时 {{ report.meta.elapsed_sec }} 秒</div>
-          </div>
-          <el-tag :type="report.summary.completed ? 'success' : 'warning'" effect="dark">{{ report.summary.score_label }}</el-tag>
-        </div>
-
-        <el-divider content-position="left">一、目标完成情况（基线 → 当前 → 目标）</el-divider>
-        <el-table :data="[report.goal_progress]" size="small" border class="pr-table">
-          <el-table-column prop="goal" label="训练目标" min-width="110" />
-          <el-table-column label="基线" min-width="130">
-            <template #default="{ row }">{{ row.baseline_label }}<div class="pr-mini">（{{ row.baseline_n }} 次历史）</div></template>
-          </el-table-column>
-          <el-table-column prop="current_label" label="本次表现" min-width="130" />
-          <el-table-column prop="target" label="下一阶段目标" min-width="190" />
-        </el-table>
-
-        <el-divider content-position="left">二、领域能力现状（{{ report.ability.dimension }}）</el-divider>
-        <div class="pr-grid">
-          <div class="pr-card ok"><b>优势 / 亮点</b><p>{{ report.ability.strength }}</p></div>
-          <div class="pr-card warn"><b>待支持项</b><p>{{ report.ability.weakness }}</p></div>
-        </div>
-        <ul class="pr-list">
-          <li v-for="(s, i) in report.ability.support_needed" :key="i">{{ s }}</li>
-        </ul>
-
-        <el-divider content-position="left">三、步骤完成与数据说明</el-divider>
-        <p class="pr-text">共 {{ report.steps.total }} 个步骤，独立完成 {{ report.steps.completed }} 个<span v-if="report.steps.pending_names.length">；待加强：{{ report.steps.pending_names.join('、') }}</span>。</p>
-        <el-alert :type="report.data_quality.level === 'good' ? 'success' : 'warning'" :closable="false" :title="report.data_quality.note" class="pr-alert" />
-
-        <el-divider content-position="left">四、后续训练任务与难度建议</el-divider>
-        <el-table :data="report.next_plan" size="small" border class="pr-table">
-          <el-table-column type="index" label="#" width="42" />
-          <el-table-column prop="name" label="任务" min-width="110" />
-          <el-table-column label="类型" width="88">
-            <template #default="{ row }"><el-tag size="small" :type="kindType(row.kind)">{{ kindText(row.kind) }}</el-tag></template>
-          </el-table-column>
-          <el-table-column label="难度" width="90">
-            <template #default="{ row }">{{ '★'.repeat(row.difficulty || 1) }}</template>
-          </el-table-column>
-          <el-table-column prop="prompt_suggestion" label="提示建议" min-width="180" />
-        </el-table>
-
-        <el-divider content-position="left">五、家长反馈（可选）</el-divider>
-        <el-form label-position="top" size="small">
-          <el-form-item label="今天在家的观察">
-            <el-input v-model="report.parent_feedback.observation" type="textarea" :rows="2" placeholder="如：孩子主动模仿了动作，情绪很好" />
-          </el-form-item>
-          <el-form-item label="难度是否合适">
-            <el-select v-model="report.parent_feedback.difficulty_fit" placeholder="请选择" style="width:100%">
-              <el-option label="偏难" value="hard" />
-              <el-option label="合适" value="fit" />
-              <el-option label="偏简单" value="easy" />
-            </el-select>
-          </el-form-item>
-        </el-form>
-        <p class="pr-disclaimer">{{ report.disclaimer }}</p>
-      </template>
-      <template #footer>
-        <el-button @click="reportVisible = false">关闭</el-button>
-        <el-button type="primary" @click="applyPlan" :disabled="!report || !report.next_plan.length">按建议开始下一组训练</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -191,8 +122,6 @@ const sceneId = ref('')
 const promptLevel = ref(0)
 const status = ref(null)
 const customModels = ref([])
-const reportVisible = ref(false)
-const report = ref(null)
 
 const KIND_TEXT = { strengthen: '需加强', consolidate: '巩固', new: '新动作', review: '复习' }
 const KIND_TYPE = { strengthen: 'danger', consolidate: 'warning', new: 'primary', review: 'info' }
@@ -237,6 +166,20 @@ async function loadBase() {
   if (scenes.value.length) sceneId.value = scenes.value[0].id
   // 默认选中推荐方案第一个动作（免手动选任务）
   if (plan.value.length && !taskId.value) taskId.value = plan.value[0].task_id
+  // 若从「报告」栏目按建议跳转过来，采用报告中推荐的动作序列
+  try {
+    const raw = sessionStorage.getItem('plan_task_ids')
+    if (raw) {
+      const ids = JSON.parse(raw)
+      if (Array.isArray(ids) && ids.length) {
+        plan.value = ids.map(id => plan.value.find(p => p.task_id === id)).filter(Boolean)
+        if (!plan.value.length) plan.value = ids.map(id => ({ task_id: id, name: id, kind: 'review', reason: '来自专业报告推荐' }))
+        taskId.value = plan.value[0].task_id
+        ElMessage.success('已采用报告中的训练建议')
+      }
+      sessionStorage.removeItem('plan_task_ids')
+    }
+  } catch (e) { console.warn(e) }
   // 家庭自定义模型列表（训练完成后自动作为放置目标候选）
   try {
     const c = await api.calibrationModels()
@@ -249,46 +192,12 @@ async function refreshStatus() {
     const prev = status.value ? status.value.state : null
     status.value = r.data
     const cur = r.data.state
-    // 训练结束（running/paused -> done/aborted）时弹出本次训练报告
+    // 训练结束（running/paused -> done/aborted）时提示到「报告」栏目查看专业报告
     if ((prev === 'running' || prev === 'paused') &&
         (cur === 'done' || cur === 'aborted') && r.data.session_id) {
-      await loadReport(r.data.session_id)
+      ElMessage({ type: 'success', message: '训练结束，请到「报告」栏目查看本次专业分析报告', duration: 6000 })
     }
   } catch (e) { console.warn(e) }
-}
-
-async function loadReport(sessionId) {
-  try {
-    const r = await api.professionalReport(sessionId)
-    report.value = r.data
-    reportVisible.value = true
-  } catch (e) {
-    console.warn(e)
-    ElMessage.warning('专业报告加载失败，请稍后重试')
-  }
-}
-
-async function openLastReport() {
-  try {
-    const r = await api.latestSession()
-    if (!r.data.session_id) { ElMessage.warning('暂无训练记录'); return }
-    await loadReport(r.data.session_id)
-  } catch (e) { console.warn(e) }
-}
-
-async function applyPlan() {
-  const first = report.value && report.value.next_plan && report.value.next_plan[0]
-  if (!first || !first.task_id) { ElMessage.warning('暂无可开始的推荐任务'); return }
-  const r = await api.startPlan({
-    child_id: status.value && status.value.child_id,
-    scene_id: sceneId.value || null,
-    prompt_level: promptLevel.value,
-    hold_sec: 2.0,
-    task_ids: report.value.next_plan.map(p => p.task_id).filter(Boolean),
-  })
-  ElMessage({ type: r.data.ok ? 'success' : 'warning', message: r.data.msg || '已按建议开始训练' })
-  reportVisible.value = false
-  refreshStatus()
 }
 
 async function start() {
@@ -364,24 +273,4 @@ setInterval(refreshStatus, 2000)
 .report-block { margin-top: 14px; }
 .report-subtitle { font-size: 14px; font-weight: 600; color: #344054; margin-bottom: 6px; }
 .report-text { color: #5b6480; line-height: 1.7; font-size: 14px; margin: 0; }
-.pr-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.pr-title { font-size: 19px; font-weight: 700; color: #1f2430; }
-.pr-sub { color: #8b93a5; font-size: 12px; margin-top: 5px; }
-.pr-table { margin: 6px 0; }
-.pr-mini { color: #a3a9bd; font-size: 11px; }
-.pr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.pr-card { padding: 12px 14px; border-radius: 10px; font-size: 13px; line-height: 1.7; }
-.pr-card b { font-size: 13px; }
-.pr-card p { margin: 5px 0 0; }
-.pr-card.ok { background: #eef8ed; color: #3e7d3e; }
-.pr-card.warn { background: #fff6e8; color: #a06a1f; }
-.pr-list { margin: 10px 0 0; padding-left: 20px; color: #5b6480; font-size: 13px; line-height: 1.9; }
-.pr-text { color: #5b6480; font-size: 13px; line-height: 1.8; }
-.pr-alert { margin: 10px 0; }
-.pr-disclaimer { color: #a3a9bd; font-size: 11px; line-height: 1.7; margin: 14px 0 0; }
-.page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.page-head .page-title { margin-bottom: 0; }
-:deep(.pr-dialog) { margin-top: 2vh !important; }
-:deep(.pr-dialog .el-dialog__body) { max-height: 74vh; overflow-y: auto; padding-top: 8px; }
-:deep(.pr-dialog .el-divider) { margin: 16px 0 12px; }
 </style>
