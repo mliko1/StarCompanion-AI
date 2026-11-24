@@ -24,6 +24,8 @@ export default {
   dashboard: (childId) => http.get('/api/reports/dashboard', { params: { child_id: childId } }),
   sessions: (limit = 20) => http.get('/api/reports/sessions', { params: { limit } }),
   sessionReport: (sessionId) => http.get(`/api/reports/session/${sessionId}`),
+  professionalReport: (sessionId) => http.get(`/api/reports/professional/${sessionId}`),
+  latestSession: () => http.get('/api/reports/latest_session'),
   vision: (pendingOnly = false) =>
     http.get('/api/reports/vision', { params: { pending_only: pendingOnly } }),
   submitReview: (payload) => http.post('/api/reports/review', payload),
