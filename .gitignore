@@ -12,6 +12,8 @@ data/*.old
 data/sequence_logs/
 data/interaction_logs/
 data.zip
+# 家庭校准采集的图片/标签/训练中间产物（数据，不入库）
+data/custom_dataset/
 
 # ===== 运行日志 =====
 logs/
@@ -37,6 +39,8 @@ frontend/node_modules/
 # pose_landmarker_lite.task 未使用（代码使用 full 版）
 vision/models/yolo11n.pt
 vision/models/pose_landmarker_lite.task
+# 家庭校准训练出的自定义权重（体积大，本地生成不入库）
+vision/models/custom_*.pt
 
 # ===== Word/Office 临时锁文件 =====
 ~$*

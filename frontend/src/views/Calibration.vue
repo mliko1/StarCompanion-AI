@@ -57,8 +57,20 @@
             class="msg"
             type="info"
             :closable="false"
-            title="训练中：系统自动训练到最佳识别效果，可能需要 10~30 分钟，完成后自动提示。"
-          />
+          >
+            <template #title>
+              正在训练「{{ className }}」
+              <span v-if="progress">：第 {{ progress.epoch }}/{{ progress.total }} 轮（{{ progress.percent }}%）</span>
+              <span v-else>：系统自动训练到最佳识别效果，请耐心等待</span>
+            </template>
+            <el-progress
+              v-if="progress"
+              :percentage="progress.percent"
+              :stroke-width="8"
+              class="train-progress"
+            />
+            <div class="hint">训练完全结束后才会导出到下方模型列表，早停可能提前完成。</div>
+          </el-alert>
         </div>
       </div>
     </el-card>
@@ -82,7 +94,11 @@
           <template #default="{ row }">{{ fmtSize(row.size_bytes) }}</template>
         </el-table-column>
       </el-table>
-      <div v-if="!models.length" class="muted">
+      <div v-if="state === 'training'" class="muted training-row">
+        <el-tag size="small" type="warning">训练中</el-tag>
+        「{{ className }}」正在训练，完成后自动出现在此列表（当前 {{ progress ? progress.epoch + '/' + progress.total + ' 轮' : '准备中' }}）。
+      </div>
+      <div v-if="!models.length && state !== 'training'" class="muted">
         还没有训练好的模型。训练完成后，这个物品就能被系统自动识别。
       </div>
     </el-card>
@@ -102,6 +118,7 @@ const cameraOn = ref(false)
 const models = ref([])
 const message = ref('')
 const error = ref(null)
+const progress = ref(null)
 const ratio = ref(0.6)
 const streamUrl = '/api/camera/stream'
 
@@ -143,6 +160,7 @@ async function refresh() {
     models.value = s.models || []
     message.value = s.message
     error.value = s.error
+    progress.value = s.progress || null
     if (s.guide_box_ratio) ratio.value = s.guide_box_ratio
   } catch (e) {
     console.warn(e)
@@ -207,4 +225,6 @@ onUnmounted(() => clearInterval(timer))
   font-weight: 600; white-space: nowrap; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 .controls { display: flex; flex-direction: column; gap: 14px; }
+.train-progress { margin-top: 10px; }
+.training-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 </style>

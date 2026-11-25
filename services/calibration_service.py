@@ -54,8 +54,34 @@ def guide_box(frame_w, frame_h):
     return (x1, y1, x1 + w, y1 + h)
 
 
+def _recover_exports():
+    """兜底：训练脚本已产出 best.pt 但导出失败时，补复制到 vision/models/。
+
+    正常流程由 train_custom_yolo.py 导出；这里防止子进程异常/中断导致
+    best.pt 一直留在 runs/ 下、页面列表永远看不到的情况。
+    """
+    runs_dir = os.path.join(DATA_DIR, "runs")
+    if not os.path.isdir(runs_dir):
+        return
+    for cls in os.listdir(runs_dir):
+        best = os.path.join(runs_dir, cls, "weights", "best.pt")
+        target = os.path.join(MODELS_DIR, f"custom_{cls}.pt")
+        if os.path.exists(best) and not os.path.exists(target):
+            try:
+                os.makedirs(MODELS_DIR, exist_ok=True)
+                import shutil
+                shutil.copyfile(best, target)
+            except OSError:
+                pass
+
+
 def list_models():
-    """扫描已训练的自定义模型，返回 [{class_name, filename, size_bytes}]。"""
+    """扫描已训练的自定义模型，返回 [{class_name, filename, size_bytes}]。
+
+    注意：不在此处补导出，因为训练过程中 best.pt 会提前出现，
+    若此时复制会把"未训练完"的模型误显示为已训练。
+    补导出只在训练进程真正结束后（_train_loop）执行。
+    """
     models = []
     if not os.path.isdir(MODELS_DIR):
         return models
@@ -203,7 +229,9 @@ class CalibrationService:
                "--epochs", str(AUTO_EPOCHS),
                "--patience", str(AUTO_PATIENCE)]
         try:
-            subprocess.call(cmd, cwd=ROOT)
+            rc = subprocess.call(cmd, cwd=ROOT)
+            # 训练进程已结束（无论返回码），此时 best.pt 才定稿；补导出防止脚本导出失败
+            _recover_exports()
             model_path = os.path.join(MODELS_DIR, f"custom_{cls}.pt")
             if os.path.exists(model_path):
                 self.state = "done"
@@ -238,7 +266,31 @@ class CalibrationService:
             "guide_box_ratio": GUIDE_BOX_RATIO,
             "camera_running": camera.running,
             "models": list_models(),
+            "progress": self._train_progress(),
         }
+
+    def _train_progress(self):
+        """读取 ultralytics results.csv 的最后一行，返回当前训练轮数。
+
+        训练中 best.pt 会先于脚本导出出现，但此时模型尚未定稿；
+        用 epoch 进度让前端明确显示"正在训练"，避免用户误以为已丢失。
+        """
+        if self.state != "training" or not self.class_name:
+            return None
+        csv_path = os.path.join(DATA_DIR, "runs", self.class_name, "results.csv")
+        epoch, total = 0, AUTO_EPOCHS
+        try:
+            with open(csv_path, "r", encoding="utf-8", errors="replace") as f:
+                lines = [ln for ln in f if ln.strip()]
+            if len(lines) > 1:
+                first = lines[1].split(",")[0].strip()
+                last = lines[-1].split(",")[0].strip()
+                if first.isdigit():
+                    epoch = int(last) if last.isdigit() else len(lines) - 1
+        except (OSError, ValueError):
+            pass
+        return {"epoch": epoch, "total": total,
+                "percent": min(100, round(epoch / total * 100))}
 
 
 # 全局单例，供接口共享
