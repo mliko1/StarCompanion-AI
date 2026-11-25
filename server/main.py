@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from api import calibration as calibration_api
 from api import device as device_api
+from api import app as app_api
 from api import camera as camera_api
 from api import personalization as personalization_api
 from api import reports as reports_api
@@ -79,6 +80,7 @@ app.include_router(reports_api.router)
 app.include_router(personalization_api.router)
 app.include_router(calibration_api.router)
 app.include_router(device_api.router)
+app.include_router(app_api.router)
 
 
 # ---------- 序列化 ----------

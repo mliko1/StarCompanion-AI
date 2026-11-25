@@ -1,6 +1,12 @@
 <template>
   <div>
-    <h2 class="page-title">首页仪表盘</h2>
+    <div class="page-head">
+      <h2 class="page-title">首页仪表盘</h2>
+      <div class="head-actions">
+        <el-button type="primary" round @click="openDesktop">打开儿童训练端</el-button>
+        <el-button round @click="openScreen">训练大屏</el-button>
+      </div>
+    </div>
 
     <el-row :gutter="16">
       <el-col :span="12" :md="6" v-for="card in cards" :key="card.label">
@@ -52,9 +58,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import api from '../api'
 import LineIcon from '../components/LineIcon.vue'
 
+const router = useRouter()
 const stats = ref(null)
 const status = ref(null)
 const sessions = ref([])
@@ -75,6 +84,15 @@ const stateText = computed(() => status.value ? (stateMap[status.value.state] ||
 const stateType = computed(() =>
   ({ running: 'primary', paused: 'warning', done: 'success', aborted: 'info', idle: 'info' }[status.value && status.value.state] || 'info'))
 
+async function openDesktop() {
+  try {
+    const r = await api.launchDesktop()
+    ElMessage({ type: r.data.ok ? 'success' : 'warning', message: r.data.msg || '已请求启动' })
+  } catch (e) { ElMessage.error('启动失败，请确认网页在电脑本机打开') }
+}
+
+function openScreen() { router.push('/training-screen') }
+
 async function load() {
   try {
     const [d, s, ss] = await Promise.all([api.dashboard(), api.status(), api.sessions(8)])
@@ -89,6 +107,9 @@ setInterval(load, 5000)
 </script>
 
 <style scoped>
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.page-head .page-title { margin-bottom: 0; }
+.head-actions { display: flex; gap: 10px; }
 .status-line { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
 .status-line .k { color: #8b93a5; width: 70px; font-size: 13px; }
 .status-line .v { color: #344054; font-size: 14px; font-weight: 500; }

@@ -21,6 +21,7 @@ export default {
   // 摄像头
   cameraStatus: () => http.get('/api/camera/status'),
   startCamera: () => http.post('/api/camera/start'),
+  launchDesktop: () => http.post('/api/app/launch-desktop'),
   // 报告
   dashboard: (childId) => http.get('/api/reports/dashboard', { params: { child_id: childId } }),
   sessions: (limit = 20) => http.get('/api/reports/sessions', { params: { limit } }),
