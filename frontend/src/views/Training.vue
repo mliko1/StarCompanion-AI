@@ -3,7 +3,16 @@
     <h2 class="page-title">训练操作</h2>
 
     <el-card shadow="never" class="block">
-      <template #header>今日推荐训练计划（根据历史完成情况自动生成）</template>
+      <template #header>
+        <div class="card-head">
+          <span>今日推荐训练计划</span>
+          <el-button v-if="plan.length" type="success" size="small" round
+                     :disabled="state === 'running' || state === 'paused'"
+                     @click="startRecommended">
+            按推荐开始训练（{{ planReps }} 轮）
+          </el-button>
+        </div>
+      </template>
       <div v-if="plan.length" class="plan-list">
         <div v-for="(p, i) in plan" :key="p.task_id" class="plan-item" @click="taskId = p.task_id">
           <span class="plan-no" :class="{ picked: taskId === p.task_id }">{{ i + 1 }}</span>
@@ -12,6 +21,7 @@
               {{ p.name }}
               <el-tag size="small" :type="kindType(p.kind)" effect="light">{{ kindText(p.kind) }}</el-tag>
               <span class="plan-rate">完成率 {{ (p.rate * 100).toFixed(0) }}%</span>
+              <el-tag size="small" type="warning" effect="plain" class="plan-reps">训练 {{ p.reps || 1 }} 次</el-tag>
             </div>
             <div class="plan-reason">{{ p.reason }}</div>
           </div>
@@ -72,6 +82,11 @@
       <template #header>实时识别状态</template>
       <template v-if="status && state !== 'idle'">
         <p>训练状态：<el-tag :type="stateType">{{ stateText }}</el-tag></p>
+        <p v-if="status.plan_mode" class="plan-progress">
+          方案进度：第 {{ (status.plan_index || 0) + 1 }}/{{ (status.plan_tasks || []).length }} 个动作
+          · {{ status.plan_results ? status.plan_results.length : 0 }}/{{ status.plan_total }} 轮
+          <el-progress :percentage="planPercent" :stroke-width="6" class="plan-bar" />
+        </p>
 
         <!-- 动作类任务 -->
         <template v-if="status.task_type !== 'skill'">
@@ -138,6 +153,12 @@ const stepList = ['find_toy', 'approach_toy', 'pick_toy', 'move_toy', 'place_toy
 
 const actionTasks = computed(() => tasks.value.filter(t => t.type === 'action'))
 const skillTasks = computed(() => tasks.value.filter(t => t.type === 'skill'))
+const planReps = computed(() => plan.value.reduce((n, p) => n + (p.reps || 1), 0))
+const planPercent = computed(() => {
+  const s = status.value
+  if (!s || !s.plan_mode || !s.plan_total) return 0
+  return Math.min(100, Math.round((s.plan_results || []).length / s.plan_total * 100))
+})
 const state = computed(() => status.value ? status.value.state : 'idle')
 const cameraRunning = computed(() => status.value && status.value.camera && status.value.camera.running)
 const selectedTask = computed(() => tasks.value.find(t => t.task_id === taskId.value))
@@ -200,6 +221,22 @@ async function refreshStatus() {
   } catch (e) { console.warn(e) }
 }
 
+async function startRecommended() {
+  if (!plan.value.length) return
+  const task_ids = plan.value.map(p => p.task_id).filter(Boolean)
+  const reps = plan.value.map(p => p.reps || 1)
+  const r = await api.startPlan({
+    child_id: status.value && status.value.child_id,
+    scene_id: sceneId.value || null,
+    prompt_level: promptLevel.value,
+    hold_sec: 2.0,
+    task_ids,
+    reps,
+  })
+  ElMessage({ type: r.data.ok ? 'success' : 'warning', message: r.data.msg || '已按今日推荐开始训练' })
+  refreshStatus()
+}
+
 async function start() {
   if (!taskId.value) { ElMessage.warning('请先选择训练任务'); return }
   const r = await api.startTraining({
@@ -243,6 +280,10 @@ setInterval(refreshStatus, 2000)
 .plan-info { flex: 1; }
 .plan-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .plan-rate { color: #8a91a6; font-size: 12px; font-weight: 400; }
+.plan-reps { margin-left: 4px; }
+.plan-progress { color: #4b5568; font-size: 13px; }
+.plan-bar { margin-top: 6px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .plan-reason { color: #8a91a6; font-size: 13px; margin-top: 3px; }
 .cont-tags { display: flex; flex-wrap: wrap; gap: 8px; }
 .cont-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0; }

@@ -98,4 +98,19 @@ def build_plan(child_id=None, limit=5):
 
 
 def _entry(item, kind, reason):
-    return {**item, "kind": kind, "reason": reason}
+    """生成推荐条目，并给出该动作建议训练次数（轮次）。
+
+    次数规则（与 kind 对应，可直接用于方案连续训练）：
+    - strengthen 完成率偏低：3 轮，重点加强；
+    - consolidate 巩固：2 轮；
+    - new 新动作：2 轮，循序渐进；
+    - review 已掌握复习：1 轮。
+    另外完成率越低适当加练，最多 5 轮，避免无效重复。
+    """
+    base = {"strengthen": 3, "consolidate": 2, "new": 2, "review": 1}.get(kind, 2)
+    rate = item.get("rate", 0)
+    if kind == "strengthen" and rate < 0.25:
+        base = 5
+    elif kind == "consolidate" and rate >= 0.8:
+        base = 1
+    return {**item, "kind": kind, "reason": reason, "reps": base}

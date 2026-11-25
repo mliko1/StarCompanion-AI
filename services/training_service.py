@@ -201,8 +201,12 @@ class TrainingService:
                 "session_code": session_code}
 
     def start_plan(self, task_ids, child_id=None, scene_id=None, prompt_level=0,
-                   hold_sec=DEFAULT_HOLD_SEC):
-        """方案模式：依次连续训练多个动作，练完一个自动进入下一个。"""
+                   hold_sec=DEFAULT_HOLD_SEC, reps=None):
+        """方案模式：依次连续训练多个动作，练完一个自动进入下一个。
+
+        reps：每个动作要练的轮次（与 task_ids 等长；缺省每动作 1 轮）。
+        语音按「第几个动作 · 第几轮」逐轮播报，无需家长手动选动作。
+        """
         if self.state == "running":
             return {"ok": False, "msg": "已有训练在进行中，请先结束"}
 
@@ -214,6 +218,16 @@ class TrainingService:
             tasks.append(t)
         if not tasks:
             return {"ok": False, "msg": "训练方案为空"}
+
+        rep_list = []
+        for i in range(len(tasks)):
+            n = 1
+            if reps and i < len(reps):
+                try:
+                    n = max(1, min(10, int(reps[i])))
+                except (TypeError, ValueError):
+                    n = 1
+            rep_list.append(n)
 
         cam_ok = camera.start()
         if not cam_ok["ok"]:
@@ -229,7 +243,8 @@ class TrainingService:
 
         self.plan_mode = True
         self.plan_tasks = [t.task_id for t in tasks]
-        self.plan_total = len(tasks)
+        self.plan_reps = rep_list
+        self.plan_total = sum(rep_list)  # 总轮次（用于状态展示）
         self.plan_index = 0
         self.plan_results = []
         self.plan_child_id = child_id
@@ -244,30 +259,44 @@ class TrainingService:
         self.thread = threading.Thread(target=self._run_plan, daemon=True)
         self.thread.start()
 
-        tts.speak(f"今天有 {len(tasks)} 个小任务，我们开始吧")
-        return {"ok": True, "msg": self.message, "plan_total": len(tasks)}
+        tts.speak(f"今天有 {len(tasks)} 个小任务，共 {self.plan_total} 轮，我们开始吧")
+        return {"ok": True, "msg": self.message,
+                "plan_total": self.plan_total, "plan_tasks": len(tasks)}
 
     def _run_plan(self):
+        round_no = 0
         for i, tid in enumerate(self.plan_tasks):
             if self._stop_flag.is_set():
                 break
-            self.plan_index = i
             task = crud.get_task_by_task_id(tid)
             if task is None:
                 self.plan_results.append({"task_id": tid, "completed": False})
                 continue
-            self._setup_single(task, self.plan_child_id, self.plan_scene_id,
-                               self.plan_prompt_level, self.plan_hold_sec)
-            tts.speak(f"第 {i + 1} 个，{task.name}，准备好咯")
-            # 单个动作：练到完成（或中途被停止）
-            ok = self._run_action()
-            self.plan_results.append({"task_id": tid, "completed": ok})
+            reps = self.plan_reps[i] if i < len(self.plan_reps) else 1
+            for r in range(reps):
+                if self._stop_flag.is_set():
+                    break
+                self.plan_index = i
+                round_no += 1
+                self._setup_single(task, self.plan_child_id, self.plan_scene_id,
+                                   self.plan_prompt_level, self.plan_hold_sec)
+                if reps > 1:
+                    tts.speak(f"第 {i + 1} 个动作，{task.name}，第 {r + 1} 轮，共 {reps} 轮，准备好咯")
+                else:
+                    tts.speak(f"第 {i + 1} 个，{task.name}，准备好咯")
+                self.message = f"训练方案：第 {i+1}/{len(self.plan_tasks)} 个动作 · 第 {r+1}/{reps} 轮"
+                # 单个动作：练到完成（或中途被停止）
+                ok = self._run_action()
+                self.plan_results.append({"task_id": tid, "completed": ok,
+                                          "round": r + 1})
+                if ok and r + 1 < reps:
+                    tts.speak("做得好，我们再来一次")
         self._finish_plan()
 
     def _finish_plan(self, completed=True):
         done_count = sum(1 for r in self.plan_results if r["completed"])
         self.state = "done" if completed else "aborted"
-        self.message = f"训练方案完成：{done_count}/{len(self.plan_results)} 个动作完成"
+        self.message = f"训练方案完成：{done_count}/{len(self.plan_results)} 轮完成（共 {len(self.plan_tasks)} 个动作）"
         events.add(make_event("plan_finished", self.message, time.time(),
                               details={"results": self.plan_results}))
         tts.speak(f"今天的训练结束啦，完成了 {done_count} 个动作，真棒！")

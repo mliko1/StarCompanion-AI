@@ -23,6 +23,7 @@ class StartPlanRequest(BaseModel):
     scene_id: int | None = None
     prompt_level: int = 0
     hold_sec: float = 2.0
+    reps: list[int] | None = None   # 每个动作训练轮次，与 task_ids 等长
 
 
 @router.post("/start")
@@ -35,7 +36,7 @@ def start(req: StartRequest):
 def start_plan(req: StartPlanRequest):
     """方案模式：依次连续训练多个动作（练完一个自动进入下一个）。"""
     return training.start_plan(req.task_ids, req.child_id, req.scene_id,
-                               req.prompt_level, req.hold_sec)
+                               req.prompt_level, req.hold_sec, req.reps)
 
 
 @router.post("/pause")
