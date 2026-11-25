@@ -24,7 +24,9 @@ VISION_DIR = os.path.join(ROOT, "vision")
 if VISION_DIR not in sys.path:
     sys.path.insert(0, VISION_DIR)
 
-from pose_utils import LandmarkSmoother  # noqa: E402
+from pose_utils import (  # noqa: E402
+    LandmarkSmoother, POSE_CONNECTIONS_FULL, draw_pos, point_reliable,
+)
 # 注意：MediaPipe 底层无法打开含中文的绝对路径，必须用相对路径
 # （配合 start() 里的 os.chdir(ROOT) 保证相对路径正确解析）。
 MODEL_PATH = os.path.join("vision", "models", "pose_landmarker_full.task")
@@ -141,6 +143,34 @@ class CameraService:
         """返回原始帧（未镜像），供 YOLO 物品检测等识别使用。"""
         with self.frame_lock:
             return None if self.raw_frame is None else self.raw_frame.copy()
+
+    def get_pose_frame(self):
+        """返回叠加骨架线条的镜像显示帧（大屏用）。
+
+        骨架点来自平滑后的原始关键点；显示帧是镜像的，
+        用 draw_pos() 把 x 翻过来，保证骨架与画面里的人对齐。
+        没有人或关键点不可靠时不画，避免出画时骨架乱飞。
+        """
+        frame = self.get_frame()
+        if frame is None:
+            return None
+        lms = self.smoothed_lms
+        if not lms:
+            return frame
+        h, w = frame.shape[:2]
+        pts = {}
+        for i, lm in enumerate(lms):
+            if point_reliable(lm):
+                pts[i] = draw_pos(lm, w, h)
+        # 骨架连线（青色，粗线，和浅色主站的蓝色系协调）
+        for a, b in POSE_CONNECTIONS_FULL:
+            if a in pts and b in pts:
+                cv2.line(frame, pts[a], pts[b], (210, 160, 70), 3, cv2.LINE_AA)
+        # 关键点（橙色圆点 + 深色描边）
+        for (x, y) in pts.values():
+            cv2.circle(frame, (x, y), 6, (60, 130, 230), -1, cv2.LINE_AA)
+            cv2.circle(frame, (x, y), 3, (255, 255, 255), -1, cv2.LINE_AA)
+        return frame
 
     def get_landmarks(self):
         """返回 (smoothed_lms, raw_lms)。"""

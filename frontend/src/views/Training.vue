@@ -234,6 +234,8 @@ function openScreen() {
 
 async function startRecommended() {
   if (!plan.value.length) return
+  // 先异步拉起摄像头（大屏打开即刻有画面），再弹大屏，最后启动训练
+  api.startCamera().catch(e => console.warn(e))
   if (autoScreen.value) openScreen()
   const task_ids = plan.value.map(p => p.task_id).filter(Boolean)
   const reps = plan.value.map(p => p.reps || 1)
@@ -251,6 +253,7 @@ async function startRecommended() {
 
 async function start() {
   if (!taskId.value) { ElMessage.warning('请先选择训练任务'); return }
+  api.startCamera().catch(e => console.warn(e))
   if (autoScreen.value) openScreen()
   const r = await api.startTraining({
     task_id: taskId.value, scene_id: sceneId.value || null,

@@ -15,6 +15,30 @@ def status():
     return camera.status()
 
 
+@router.post("/start")
+def start_camera():
+    """启动摄像头（开始训练时前端可先调用，大屏立即有画面）。"""
+    return camera.start()
+
+
+@router.get("/stream_pose")
+def stream_pose():
+    """MJPEG 流：叠加 MediaPipe 骨架线条的画面（训练大屏用）。"""
+
+    def gen():
+        while True:
+            frame = camera.get_pose_frame()
+            if frame is not None:
+                ok, buf = cv2.imencode(
+                    ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                if ok:
+                    yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
+                           + buf.tobytes() + b"\r\n")
+
+    return StreamingResponse(
+        gen(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
 @router.get("/snapshot")
 def snapshot():
     """单帧快照（JPEG），供桌面端显示画面（无需解析 MJPEG 流）。"""

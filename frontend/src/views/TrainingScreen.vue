@@ -89,7 +89,7 @@ import { ElMessage } from 'element-plus'
 import api from '../api'
 
 const status = ref(null)
-const streamUrl = '/api/camera/stream'
+const streamUrl = '/api/camera/stream_pose'
 const isFullscreen = ref(false)
 
 const STEP_MAP = {
@@ -148,10 +148,18 @@ async function toggleFullscreen() {
 
 function closeWindow() { window.close() }
 
+async function ensureCamera() {
+  try {
+    const s = await api.cameraStatus()
+    if (!s.data.running) await api.startCamera()
+  } catch (e) { console.warn(e) }
+}
+
 function onFsChange() { isFullscreen.value = !!document.fullscreenElement }
 
 let timer = null
 onMounted(() => {
+  ensureCamera()
   refresh()
   timer = setInterval(refresh, 1000)
   document.addEventListener('fullscreenchange', onFsChange)
@@ -163,35 +171,36 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.screen { height: 100vh; display: flex; flex-direction: column; padding: 18px 22px; background: #0d1424; color: #e8eefc; }
+/* 与主站一致的浅色系：--bg #f3f7fc / --surface #fff / --primary #0b63ce */
+.screen { height: 100vh; display: flex; flex-direction: column; padding: 18px 22px; background: #f3f7fc; color: #26374d; }
 .screen-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.screen-head h1 { font-size: 22px; font-weight: 700; }
-.screen-head p { color: #8fa3c8; font-size: 12px; margin-top: 4px; }
+.screen-head h1 { font-size: 22px; font-weight: 600; color: #0f172a; letter-spacing: -0.4px; }
+.screen-head p { color: #7b8aa0; font-size: 12px; margin-top: 4px; }
 .head-btns { display: flex; align-items: center; gap: 10px; }
 .screen-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; }
-.video-area { position: relative; border-radius: 16px; overflow: hidden; background: #050a14; display: flex; align-items: center; justify-content: center; min-height: 0; }
+.video-area { position: relative; border-radius: 16px; overflow: hidden; background: #e8eef7; display: flex; align-items: center; justify-content: center; min-height: 0; box-shadow: 0 2px 10px rgba(31, 54, 90, 0.05); }
 .video { width: 100%; height: 100%; object-fit: contain; display: block; }
-.placeholder { flex-direction: column; gap: 12px; color: #6f82a6; font-size: 14px; }
-.ph-icon { width: 72px; height: 72px; border-radius: 50%; background: #182238; display: flex; align-items: center; justify-content: center; font-size: 13px; }
-.video-overlay { position: absolute; left: 0; right: 0; top: 0; padding: 14px 18px; background: linear-gradient(180deg, rgba(5,10,20,.78), transparent); }
+.placeholder { flex-direction: column; gap: 12px; color: #7b8aa0; font-size: 14px; }
+.ph-icon { width: 72px; height: 72px; border-radius: 50%; background: #dfe8f6; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #0b63ce; }
+.video-overlay { position: absolute; left: 0; right: 0; top: 0; padding: 14px 18px; background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,0)); }
 .overlay-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.ov-task { font-size: 18px; font-weight: 700; text-shadow: 0 2px 6px #000; }
-.ov-plan { font-size: 13px; color: #c9d6f0; }
+.ov-task { font-size: 18px; font-weight: 700; color: #0f172a; }
+.ov-plan { font-size: 13px; color: #4a90e8; }
 .ov-progress { margin-top: 8px; }
 .info-panel { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-right: 4px; }
-.info-block { background: #151e33; border-radius: 14px; padding: 14px 16px; }
-.info-block h3 { font-size: 14px; color: #9fb4db; margin-bottom: 10px; font-weight: 600; }
-.info-block p { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 2; color: #c8d5ef; }
-.info-block p span { color: #7f92b5; min-width: 68px; }
-.info-block p b { color: #fff; font-weight: 600; }
-.info-block .empty { color: #7588aa; }
+.info-block { background: #fff; border: 1px solid rgba(17, 32, 56, 0.06); border-radius: 16px; padding: 14px 16px; box-shadow: 0 2px 10px rgba(31, 54, 90, 0.05); }
+.info-block h3 { font-size: 14px; color: #0f172a; margin-bottom: 10px; font-weight: 600; }
+.info-block p { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 2; color: #4b5568; }
+.info-block p span { color: #7b8aa0; min-width: 68px; }
+.info-block p b { color: #26374d; font-weight: 600; }
+.info-block .empty { color: #7b8aa0; }
 .control-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.tip { margin-top: 10px; font-size: 11px !important; color: #7588aa !important; line-height: 1.6 !important; }
+.tip { margin-top: 10px; font-size: 11px !important; color: #7b8aa0 !important; line-height: 1.6 !important; }
 .steps { display: flex; flex-wrap: wrap; gap: 6px; }
-.step-chip { padding: 4px 8px; border-radius: 14px; background: #1e2c48; color: #8fa3c8; font-size: 11px; }
-.step-chip.done { background: #1f4d38; color: #7ee2a8; }
-.step-chip.current { background: #1d3e6e; color: #9ecbff; }
-.events { list-style: none; font-size: 11px; color: #9fb4db; line-height: 1.9; }
-.ev-time { color: #6c80a4; margin-right: 6px; }
+.step-chip { padding: 4px 8px; border-radius: 14px; background: #eef5fe; color: #4a90e8; font-size: 11px; }
+.step-chip.done { background: #eef8ed; color: #3e7d3e; }
+.step-chip.current { background: #e7f0ff; color: #0b63ce; }
+.events { list-style: none; font-size: 11px; color: #4b5568; line-height: 1.9; }
+.ev-time { color: #7b8aa0; margin-right: 6px; }
 @media (max-width: 900px) { .screen-body { grid-template-columns: 1fr; } .info-panel { max-height: 40vh; } }
 </style>
