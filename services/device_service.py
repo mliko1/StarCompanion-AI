@@ -13,7 +13,12 @@ def device_status():
 
 
 def connect_device(port="COM3"):
-    return esp32.connect(port)
+    """连接 ESP32；可指定端口（如 COM3），已连接时先切换端口再开。"""
+    if port and port != esp32.port:
+        if esp32.connected:
+            esp32.close()
+        esp32.port = port
+    return esp32.connect()
 
 
 def set_led(on):

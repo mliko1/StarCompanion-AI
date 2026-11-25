@@ -66,16 +66,23 @@ class MainWindow(QMainWindow):
         title.setObjectName("title")
         title.setAlignment(Qt.AlignCenter)
 
-        # ---------- 摄像头画面 ----------
-        self.video_label = QLabel("摄像头画面（点「开始」后显示）")
+        # ---------- AI 识别监控（骨架画面 + 实时状态）----------
+        monitor_title = QLabel("AI 识别监控（骨架 / 动作 / 进度）")
+        monitor_title.setObjectName("section")
+        self.video_label = QLabel("摄像头画面（点「开始」后显示，含骨架）")
         self.video_label.setObjectName("video")
         self.video_label.setAlignment(Qt.AlignCenter)
-        # 只固定高度，不用 Ignored 策略（Ignored 会让布局不占位、控件重叠）
-        self.video_label.setFixedHeight(250)
+        self.video_label.setFixedHeight(280)
         self.video_timer = QTimer(self)
         self.video_timer.setInterval(250)
         self.video_timer.timeout.connect(self._update_video)
         self.video_timer.start()
+
+        self.monitor_label = QLabel("当前识别：—　状态：待机")
+        self.monitor_label.setObjectName("monitor")
+        self.monitor_label.setWordWrap(True)
+        self.progress_label = QLabel("任务进度：0/0 轮")
+        self.progress_label.setObjectName("progress")
 
         # ---------- 今日训练计划 ----------
         plan_title = QLabel("今日训练计划（自动推荐）")
@@ -103,7 +110,10 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(self.stop_btn, 1)
 
         root.addWidget(title)
+        root.addWidget(monitor_title)
         root.addWidget(self.video_label)
+        root.addWidget(self.monitor_label)
+        root.addWidget(self.progress_label)
         root.addWidget(plan_title)
         root.addWidget(self.plan_list, 1)
         root.addWidget(self.status_label)
@@ -133,6 +143,11 @@ class MainWindow(QMainWindow):
                 border-radius: 16px; padding: 8px;
             }
             #planList::item { padding: 10px 14px; border-radius: 10px; margin: 3px 0; }
+            #video { background: #e8eef7; color: #7b8aa0; }
+            #monitor, #progress {
+                font-size: 15px; color: #0b63ce; font-weight: 700;
+                background: #eef5fe; border-radius: 10px; padding: 8px 12px;
+            }
             #status { font-size: 16px; color: #5b6480; }
             #startBtn {
                 font-size: 24px; font-weight: 700; padding: 18px; border-radius: 16px;
@@ -192,8 +207,14 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "提示", "暂无训练计划，无法开始")
             return
         task_ids = [p["task_id"] for p in self._plan]
+        reps = [p.get("reps", 1) for p in self._plan]
         try:
-            resp = http_post("/api/training/start_plan", {"task_ids": task_ids})
+            http_post("/api/camera/start", {}, timeout=15)
+        except Exception:
+            pass
+        try:
+            resp = http_post("/api/training/start_plan",
+                             {"task_ids": task_ids, "reps": reps})
         except Exception as e:
             # 首次开摄像头+加载模型可能较慢；超时后确认后端实际状态
             try:
@@ -241,9 +262,19 @@ class MainWindow(QMainWindow):
             return
         self._last_status = st
         self._update_plan_list(st)
+        # AI 监控：动作名称 / 当前识别 / 状态 / 骨架画面（画面由 _update_video 刷新）
+        cur_action = st.get("current_action") or "—"
+        detected = "已命中 ✓" if st.get("detected_now") else "识别中…"
+        state_cn = {"idle": "待机", "running": "训练中", "paused": "已暂停",
+                    "done": "已完成", "aborted": "已结束",
+                    "uncertain": "待确认"}.get(st.get("state"), st.get("state") or "—")
+        self.monitor_label.setText(
+            f"目标：{st.get('task_name') or '—'}　当前识别：{cur_action}　{detected}　状态：{state_cn}")
         if st.get("plan_mode"):
             idx = st.get("plan_index", 0) + 1
             total = st.get("plan_total", len(self._plan))
+            done_rounds = len(st.get("plan_results") or [])
+            self.progress_label.setText(f"任务进度：{done_rounds}/{total} 轮　第 {idx} 个动作")
             name = self._plan[idx - 1]["name"] if 0 < idx <= len(self._plan) else ""
             hint = "√ 做对了，保持住！" if st.get("detected_now") else "请跟着语音做动作"
             self.status_label.setText(f"第 {idx}/{total} 个动作：{name}　{hint}")
@@ -268,7 +299,7 @@ class MainWindow(QMainWindow):
     # ---------- 摄像头画面 ----------
     def _update_video(self):
         try:
-            req = urllib.request.Request(BACKEND + "/api/camera/snapshot")
+            req = urllib.request.Request(BACKEND + "/api/camera/snapshot_pose")
             with urllib.request.urlopen(req, timeout=1) as r:
                 data = r.read()
         except Exception:
@@ -280,7 +311,7 @@ class MainWindow(QMainWindow):
         # 保证 pixmap 尺寸恒定 ≤ 框体，不会形成"放大循环"
         w = max(self.video_label.width(), 320)
         self.video_label.setPixmap(pix.scaled(
-            w, 250, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            w, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     # ---------- 结果弹窗 ----------
     def _show_result(self):
@@ -305,7 +336,25 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        text = f"本次完成 {done}/{total} 个动作{elapsed}{stats_txt}\n\n（识别结果仅供参考，请家长确认）"
+        text = f"本次完成 {done}/{total} 个动作{elapsed}{stats_txt}"
+        # 与网页端统一：拉取同一份专业报告要点（P1-12）
+        try:
+            sid = (st.get("session_id") or
+                   (st.get("plan_results") or [{}])[-1].get("session_id"))
+            if sid:
+                rep = http_get(f"/api/reports/professional/{sid}")
+                highlights = rep.get("highlights") or []
+                if highlights:
+                    text += "\n\n【本次报告要点】\n" + "\n".join(
+                        "· " + h for h in highlights[:4])
+                plan = rep.get("next_plan") or []
+                if plan:
+                    text += "\n【后续建议】\n" + "\n".join(
+                        "· " + p.get("name", "") + "：" + p.get("prompt_suggestion", "")
+                        for p in plan[:3])
+        except Exception:
+            pass
+        text += "\n\n（识别结果仅供参考，请家长确认；详细报告见网页端「报告」栏目）"
         QMessageBox.information(self, "训练结果", text)
 
 

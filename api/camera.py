@@ -21,6 +21,18 @@ def start_camera():
     return camera.start()
 
 
+@router.get("/snapshot_pose")
+def snapshot_pose():
+    """带骨架的单帧快照（JPEG），桌面端 AI 监控区显示。"""
+    frame = camera.get_pose_frame()
+    if frame is None:
+        return Response(status_code=503)
+    ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+    if not ok:
+        return Response(status_code=500)
+    return Response(content=buf.tobytes(), media_type="image/jpeg")
+
+
 @router.get("/stream_pose")
 def stream_pose():
     """MJPEG 流：叠加 MediaPipe 骨架线条的画面（训练大屏用）。"""

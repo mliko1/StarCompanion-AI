@@ -423,6 +423,7 @@ class TrainingService:
             self._finish(completed=False)
         # 训练结束必须释放摄像头，否则一直占用（影响下次启动与别的程序）
         camera_status = camera.stop()
+        self._device_feedback(False)  # P2-16：训练状态结束时熄灭 LED
         return {"ok": True, "msg": "训练已结束", "camera": camera_status}
 
     def status(self):
@@ -648,8 +649,18 @@ class TrainingService:
             elapsed = 0.0
             if s and s.start_time:
                 elapsed = (datetime.datetime.now() - s.start_time).total_seconds()
+            # 不确定态（P0-6）：命中率介于"明确失败"与"明确完成"之间、
+            # 或中途被主动停止时，不直接错误判定成功/失败，标记 uncertain 交人工复核。
+            uncertain = (not completed and conf >= 0.35) or (
+                not completed and getattr(self, "_stop_flag") is not None
+                and self._stop_flag.is_set())
+            reason = None
+            if uncertain:
+                reason = ("识别命中率中等，无法明确判定"
+                          if conf >= 0.35 else "训练被主动中止，结果待确认")
+            final_status = "uncertain" if uncertain else action_state
             crud.update_session(
-                self.session_id, status=action_state, completed=completed,
+                self.session_id, status=final_status, completed=completed,
                 end_time=datetime.datetime.now(), elapsed_sec=round(elapsed, 1))
             crud.add_action_record(
                 self.session_id, step_name=self.task.name if self.task else None,
@@ -659,10 +670,10 @@ class TrainingService:
             crud.add_vision_record(
                 self.session_id,
                 raw_result={"action_id": self.task_params.get("action_id"),
-                            "completed": completed},
+                            "completed": completed, "status": final_status},
                 confidence=round(conf, 3),
-                uncertainty=not completed,
-                uncertainty_reason=None if completed else "未达到保持时长")
+                uncertainty=uncertain,
+                uncertainty_reason=reason)
             # 个体化适应：把本次完成用时写回档案（逐步建立参考范围）
             self._record_personalization(completed, elapsed)
         events.add(make_event("action_detected",
@@ -674,9 +685,16 @@ class TrainingService:
         events.add(make_event("task_finished", self.message, time.time(),
                               session_id=self.session_id,
                               details={"completed": completed}))
-        self.message = "训练完成" if completed else "训练已结束"
+        self.message = "训练完成" if completed else (
+            "识别结果不确定，请到确认页复核" if uncertain else "训练已结束")
         if completed:
             tts.speak("太棒啦，任务完成咯！")
+            self._device_feedback(True)
+        elif uncertain:
+            tts.speak("这次没看清楚，请家长核对一下哦")
+            self._device_feedback(False)
+        else:
+            self._device_feedback(False)
         # 每场训练生成一份当日全新报告（落库快照，重复调用不会覆盖）
         if self.session_id:
             self._generate_report()
@@ -687,6 +705,18 @@ class TrainingService:
             generate_and_save(self.session_id)
         except Exception as e:
             print(f"[report] 自动生成报告失败: {e}")
+
+    def _device_feedback(self, success):
+        """P2：把硬件反馈与训练结果关联（未连接时优雅降级，不影响训练）。"""
+        try:
+            from services import device_service
+            if success:
+                device_service.set_led(True)
+                device_service.buzz(300)
+            else:
+                device_service.set_led(False)
+        except Exception:
+            pass
 
     def _finish_skill(self, completed):
         self.state = "done" if completed else "aborted"
@@ -710,6 +740,9 @@ class TrainingService:
         self.message = "训练完成" if completed else "训练已结束"
         if completed:
             tts.speak("太棒啦，任务完成咯！")
+            self._device_feedback(True)
+        else:
+            self._device_feedback(False)
         if self.session_id:
             self._generate_report()
 

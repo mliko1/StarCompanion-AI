@@ -83,4 +83,21 @@ class ReviewRequest(BaseModel):
 def review(req: ReviewRequest):
     r = crud.add_manual_review(req.vision_record_id, req.reviewer,
                                req.is_correct, req.corrected_result, req.note)
+    # 复核回写（P1-11）：把对应不确定会话标记为已确认，统计不再当作待确认
+    try:
+        from database.db import SessionLocal
+        from database import models
+        db = SessionLocal()
+        try:
+            vr = db.get(models.VisionRecord, req.vision_record_id)
+            if vr and vr.session_id:
+                s = db.get(models.TrainingSession, vr.session_id)
+                if s and s.status == "uncertain":
+                    s.status = "confirmed"
+                    s.completed = bool(req.is_correct)
+                    db.commit()
+        finally:
+            db.close()
+    except Exception:
+        pass
     return {"ok": True, "id": r.id}

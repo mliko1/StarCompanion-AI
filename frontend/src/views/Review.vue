@@ -50,7 +50,12 @@
         <el-table-column label="置信度" width="90">
           <template #default="{ row }">{{ row.confidence != null ? row.confidence.toFixed(2) : '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="纠正结果" min-width="150">
+          <template #default="{ row }">
+            <el-input v-model="row.corrected_text" size="small" placeholder="有误时填写正确结果" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="220">
           <template #default="{ row }">
             <el-button size="small" type="success" @click="confirm(row, true)">识别正确</el-button>
             <el-button size="small" type="warning" @click="confirm(row, false)">识别有误</el-button>
@@ -64,6 +69,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import api from '../api'
 
 const records = ref([])
@@ -93,8 +99,18 @@ async function submitHand() {
 }
 
 async function confirm(row, isCorrect) {
-  await api.submitReview({ vision_record_id: row.id, is_correct: isCorrect })
-  ElMessage.success('已保存人工确认')
+  if (!isCorrect && !row.corrected_text) {
+    ElMessage.warning('识别有误时请填写正确结果')
+    return
+  }
+  const corrected = row.corrected_text
+    ? { text: row.corrected_text, action_id: row.corrected_text }
+    : null
+  await api.submitReview({
+    vision_record_id: row.id, is_correct: isCorrect,
+    corrected_result: corrected, note: row.corrected_text || null,
+  })
+  ElMessage.success('已保存人工确认' + (isCorrect ? '' : '并回写纠正结果'))
   load()
 }
 
