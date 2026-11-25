@@ -13,38 +13,39 @@
     <el-card shadow="never" class="block">
       <template #header>
         <div class="card-head">
-          <span>个体化训练报告（家长可读）</span>
+          <span>个体化训练报告</span>
           <el-button type="primary" size="small" round @click="openLastReport">查看最近训练报告</el-button>
         </div>
       </template>
-      <p class="interpretation">训练结束后自动生成完整分析报告：目标基线/当前/下一目标对照、领域能力现状、步骤与数据质量、近期趋势、提示依赖、家庭延伸建议、后续任务难度及家长反馈。点击右上角按钮查看，或在下方记录中点「查看报告」。</p>
+      <div class="report-intro">
+        <div class="intro-line"><span class="intro-label">报告内容</span><span>目标对照 · 能力现状 · 步骤明细 · 趋势与提示依赖 · 家庭建议 · 后续任务 · 家长反馈</span></div>
+        <div class="intro-line"><span class="intro-label">查看方式</span><span>点击右上角按钮查看最近一份，或在下方历史记录中点「查看报告」</span></div>
+      </div>
     </el-card>
 
     <el-card shadow="never" class="block">
-      <template #header>
-        <div class="card-head">
-          <span>历史训练报告（每次训练一份，可查询）</span>
-          <div class="history-filter">
-            <el-select v-model="historyChild" placeholder="全部儿童" size="small" clearable style="width:130px">
-              <el-option v-for="c in children" :key="c.id" :label="c.nickname" :value="c.id" />
-            </el-select>
-            <el-date-picker v-model="historyRange" type="daterange" size="small" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:240px" />
-            <el-button size="small" @click="loadHistory">查询</el-button>
-          </div>
-        </div>
-      </template>
-      <el-table :data="historyReports" size="small" border v-loading="historyLoading" max-height="360">
-        <el-table-column prop="report_date" label="报告日期" width="110" />
-        <el-table-column prop="child_id" label="儿童" width="90">
+      <template #header>历史训练报告</template>
+      <div class="history-filter">
+        <el-select v-model="historyChild" placeholder="全部儿童" size="small" clearable style="width:140px">
+          <el-option v-for="c in children" :key="c.id" :label="c.nickname" :value="c.id" />
+        </el-select>
+        <el-date-picker v-model="historyRange" type="daterange" size="small" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width:250px" />
+        <el-button size="small" type="primary" plain @click="loadHistory">查询</el-button>
+      </div>
+      <el-table :data="historyReports" size="small" border v-loading="historyLoading" max-height="360" class="history-table">
+        <el-table-column prop="report_date" label="报告日期" width="112" align="center" />
+        <el-table-column label="儿童" width="96" align="center">
           <template #default="{ row }">{{ childName(row.child_id) }}</template>
         </el-table-column>
-        <el-table-column prop="task_name" label="训练任务" min-width="130" />
-        <el-table-column label="完成情况" width="110">
+        <el-table-column prop="task_name" label="训练任务" min-width="120" align="center" />
+        <el-table-column label="完成情况" width="132" align="center">
           <template #default="{ row }"><el-tag size="small" :type="row.completed ? 'success' : 'warning'">{{ row.score_label || '—' }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="elapsed_sec" label="用时(秒)" width="90" />
-        <el-table-column prop="created_at" label="生成时间" min-width="150" />
-        <el-table-column label="操作" width="90">
+        <el-table-column label="用时" width="86" align="center">
+          <template #default="{ row }">{{ row.elapsed_sec != null ? row.elapsed_sec + ' 秒' : '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="生成时间" min-width="148" align="center" />
+        <el-table-column label="操作" width="92" align="center" fixed="right">
           <template #default="{ row }"><el-button size="small" link type="primary" @click="openSaved(row.report_id)">查看报告</el-button></template>
         </el-table-column>
       </el-table>
@@ -396,7 +397,11 @@ setInterval(load, 10000)
 .wide { grid-column: 1 / -1; }
 @media (max-width: 768px) { .charts { grid-template-columns: 1fr; } .wide { grid-column: 1; } }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.history-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.report-intro { display: flex; flex-direction: column; gap: 10px; }
+.intro-line { display: flex; align-items: flex-start; gap: 12px; font-size: 13px; color: #4b5568; line-height: 1.7; }
+.intro-label { flex: 0 0 60px; color: #98a2b8; font-size: 12px; padding-top: 1px; }
+.history-filter { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 0 14px; }
+.history-table { width: 100%; }
 .empty-hint { color: #a3a9bd; font-size: 12px; padding: 12px 0; text-align: center; }
 .highlights { background: #f5f8ff; border-radius: 8px; padding: 10px 14px 10px 30px; }
 .pr-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
