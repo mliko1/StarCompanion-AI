@@ -1,6 +1,6 @@
 <template>
   <div class="app">
-    <aside v-if="!isLogin" class="sidebar">
+    <aside v-if="!isLogin && !isScreen" class="sidebar">
       <div class="brand">
         <span class="brand-text">星伴<em>AI</em></span>
       </div>
@@ -13,11 +13,11 @@
       <div class="sidebar-foot">家庭康复训练辅助</div>
     </aside>
 
-    <main class="content" :class="{ 'content-full': isLogin }">
+    <main class="content" :class="{ 'content-full': isLogin || isScreen }">
       <router-view />
     </main>
 
-    <nav v-if="!isLogin" class="tabbar">
+    <nav v-if="!isLogin && !isScreen" class="tabbar">
       <router-link v-for="item in menus" :key="item.path" :to="item.path"
                    class="tab-item" :class="{ active: $route.path === item.path }">
         <span class="icon"><LineIcon :name="item.icon" /></span><span>{{ item.title }}</span>
@@ -42,6 +42,7 @@ const menus = [
 
 const route = useRoute()
 const isLogin = computed(() => route.path === '/login')
+const isScreen = computed(() => route.path === '/training-screen')
 </script>
 
 <style>

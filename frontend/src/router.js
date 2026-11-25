@@ -5,6 +5,7 @@ import Reports from './views/Reports.vue'
 import Review from './views/Review.vue'
 import Settings from './views/Settings.vue'
 import Calibration from './views/Calibration.vue'
+import TrainingScreen from './views/TrainingScreen.vue'
 import Login from './views/Login.vue'
 import { isLoggedIn } from './auth'
 
@@ -12,6 +13,7 @@ const routes = [
   { path: '/login', component: Login, meta: { title: '登录', public: true } },
   { path: '/', component: Dashboard, meta: { title: '首页' } },
   { path: '/training', component: Training, meta: { title: '训练操作' } },
+  { path: '/training-screen', component: TrainingScreen, meta: { title: '训练大屏' } },
   { path: '/reports', component: Reports, meta: { title: '训练报告' } },
   { path: '/review', component: Review, meta: { title: '人工确认' } },
   { path: '/settings', component: Settings, meta: { title: '档案与设置' } },

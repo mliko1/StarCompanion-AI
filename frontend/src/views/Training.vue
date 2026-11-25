@@ -62,6 +62,8 @@
           </div>
         </el-form-item>
         <el-form-item>
+          <el-checkbox v-model="autoScreen" size="small" style="margin-right: 14px">自动弹出大屏</el-checkbox>
+          <el-button size="small" @click="openScreen">手动打开大屏</el-button>
           <el-button type="primary" @click="start" :disabled="state === 'running'">开始训练</el-button>
           <el-button @click="pause" :disabled="state !== 'running'">暂停</el-button>
           <el-button @click="resume" :disabled="state !== 'paused'">恢复</el-button>
@@ -135,6 +137,7 @@ const plan = ref([])
 const taskId = ref('')
 const sceneId = ref('')
 const promptLevel = ref(0)
+const autoScreen = ref(true)
 const status = ref(null)
 const customModels = ref([])
 
@@ -221,8 +224,17 @@ async function refreshStatus() {
   } catch (e) { console.warn(e) }
 }
 
+function openScreen() {
+  // 必须在用户点击的同步上下文里 window.open，否则会被浏览器弹窗拦截
+  const url = window.location.href.split('#')[0] + '#/training-screen'
+  const w = window.open(url, 'starcompanion_train_screen',
+    'width=1280,height=860,menubar=no,toolbar=no,location=no,status=no')
+  if (w) w.focus()
+}
+
 async function startRecommended() {
   if (!plan.value.length) return
+  if (autoScreen.value) openScreen()
   const task_ids = plan.value.map(p => p.task_id).filter(Boolean)
   const reps = plan.value.map(p => p.reps || 1)
   const r = await api.startPlan({
@@ -239,6 +251,7 @@ async function startRecommended() {
 
 async function start() {
   if (!taskId.value) { ElMessage.warning('请先选择训练任务'); return }
+  if (autoScreen.value) openScreen()
   const r = await api.startTraining({
     task_id: taskId.value, scene_id: sceneId.value || null,
     prompt_level: promptLevel.value, hold_sec: 2.0,
