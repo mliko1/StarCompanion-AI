@@ -6,9 +6,30 @@
       <template #header>账号</template>
       <div class="account">
         <span class="muted">当前账号：{{ account || '—' }}</span>
-        <el-button size="small" round @click="onLogout">退出登录</el-button>
+        <div class="account-actions">
+          <el-button size="small" round @click="passwordDialog = true">修改密码</el-button>
+          <el-button size="small" round @click="onLogout">退出登录</el-button>
+        </div>
       </div>
     </el-card>
+
+    <el-dialog v-model="passwordDialog" title="修改密码" width="420px" :close-on-click-modal="false">
+      <el-form label-width="90px">
+        <el-form-item label="原密码" required>
+          <el-input v-model="pwdForm.old" type="password" show-password autocomplete="current-password" placeholder="请输入当前密码" />
+        </el-form-item>
+        <el-form-item label="新密码" required>
+          <el-input v-model="pwdForm.new" type="password" show-password autocomplete="new-password" placeholder="至少 6 位" />
+        </el-form-item>
+        <el-form-item label="确认新密码" required>
+          <el-input v-model="pwdForm.confirm" type="password" show-password autocomplete="new-password" placeholder="再次输入新密码" @keyup.enter="onChangePassword" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="closePasswordDialog">取消</el-button>
+        <el-button type="primary" :loading="pwdSaving" @click="onChangePassword">确认修改</el-button>
+      </template>
+    </el-dialog>
 
     <el-card shadow="never" class="block">
       <template #header>
@@ -91,12 +112,41 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
-import { currentUser, logout } from '../auth'
+import { currentUser, logout, changePassword } from '../auth'
 
 const router = useRouter()
 const children = ref([])
 const tasks = ref([])
 const account = currentUser()
+
+const passwordDialog = ref(false)
+const pwdSaving = ref(false)
+const pwdForm = ref({ old: '', new: '', confirm: '' })
+
+function closePasswordDialog() {
+  passwordDialog.value = false
+  pwdForm.value = { old: '', new: '', confirm: '' }
+}
+
+async function onChangePassword() {
+  const { old, new: next, confirm } = pwdForm.value
+  if (!old) { ElMessage.warning('请输入原密码'); return }
+  if (!next || next.length < 6) { ElMessage.warning('新密码至少 6 位'); return }
+  if (next !== confirm) { ElMessage.warning('两次输入的新密码不一致'); return }
+  pwdSaving.value = true
+  try {
+    const r = await changePassword(old, next)
+    if (r.ok) {
+      closePasswordDialog()
+      ElMessage.success(r.msg || '密码已修改，请重新登录')
+      router.replace('/login')
+    } else {
+      ElMessage.warning(r.msg || '修改失败')
+    }
+  } finally {
+    pwdSaving.value = false
+  }
+}
 
 const dialogVisible = ref(false)
 const editingId = ref(null)
@@ -170,7 +220,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.account { display: flex; align-items: center; justify-content: space-between; }
+.account { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.account-actions { display: flex; gap: 8px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; }
 .tips { padding-left: 20px; line-height: 2.1; color: #5b6480; }
 .tips code {

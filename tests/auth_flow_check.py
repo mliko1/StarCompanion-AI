@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""登录闭环自检：未登录拦截、登录、会话、退出、桌面端令牌。
+"""登录闭环自检：未登录拦截、登录、会话、退出、修改密码、桌面端令牌。
 
 用法：先启动后端（默认 8001 端口可用环境变量 BASE_URL 覆盖），再运行本脚本。
 """
@@ -7,6 +7,7 @@
 import http.cookiejar
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -64,6 +65,51 @@ def main():
 
     code, _ = call(web, "GET", "/api/children")
     check("退出后业务接口再次拦截", code == 401, f"status={code}")
+
+    # 修改密码：用独立账号避免污染演示账号，验证旧密码失效、新密码可用、旧会话被撤销
+    name = f"pwtest_{int(time.time())}"
+    old_pwd, new_pwd = "Old@123456", "New@123456"
+    pw_jar = http.cookiejar.CookieJar()
+    pw_web = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(pw_jar))
+
+    code, data = call(plain, "POST", "/api/auth/register",
+                      {"username": name, "password": old_pwd})
+    check("改密测试账号注册", code == 200 and data.get("ok"), f"status={code}")
+
+    code, _ = call(pw_web, "POST", "/api/auth/login",
+                   {"username": name, "password": "wrong"})
+    check("改密前错误密码登录失败", code == 401, f"status={code}")
+
+    code, data = call(pw_web, "POST", "/api/auth/login",
+                      {"username": name, "password": old_pwd})
+    check("改密前原密码登录成功", code == 200 and data.get("ok"), f"status={code}")
+
+    code, _ = call(pw_web, "POST", "/api/auth/change-password",
+                   {"old_password": "wrong", "new_password": new_pwd})
+    check("原密码错误时拒绝改密", code == 400, f"status={code}")
+
+    code, _ = call(pw_web, "POST", "/api/auth/change-password",
+                   {"old_password": old_pwd, "new_password": "123"})
+    check("新密码过短时拒绝改密", code == 400, f"status={code}")
+
+    code, data = call(pw_web, "POST", "/api/auth/change-password",
+                      {"old_password": old_pwd, "new_password": new_pwd})
+    check("原密码正确时改密成功", code == 200 and data.get("ok"), f"status={code}")
+
+    code, data = call(pw_web, "GET", "/api/auth/me")
+    check("改密后原会话被撤销", code == 200 and not data.get("authenticated"), str(data))
+
+    code, _ = call(plain, "POST", "/api/auth/login",
+                   {"username": name, "password": old_pwd})
+    check("改密后旧密码登录失败", code == 401, f"status={code}")
+
+    code, data = call(plain, "POST", "/api/auth/login",
+                      {"username": name, "password": new_pwd})
+    check("改密后新密码登录成功", code == 200 and data.get("ok"), f"status={code}")
+
+    code, data = call(pw_web, "POST", "/api/auth/change-password",
+                      {"old_password": new_pwd, "new_password": new_pwd})
+    check("改密接口要求登录态", code == 401, f"status={code}")
 
     code, data = call(plain, "POST", "/api/auth/desktop-token", {})
     token = data.get("token", "")
