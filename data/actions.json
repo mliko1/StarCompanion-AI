@@ -244,7 +244,8 @@
       "excludes": [
         "touch_belly",
         "touch_elbow_left",
-        "touch_elbow_right"
+        "touch_elbow_right",
+        "hands_pray"
       ]
     },
     {
@@ -496,6 +497,11 @@
             "val": -0.08
           }
         ]
+      ],
+      "excludes": [
+        "arm_forward_left",
+        "arm_forward_right",
+        "raise_both_forward"
       ]
     },
     {
@@ -550,6 +556,9 @@
             "val": -0.05
           }
         ]
+      ],
+      "excludes": [
+        "kick_left"
       ]
     },
     {
@@ -573,6 +582,9 @@
             "val": -0.05
           }
         ]
+      ],
+      "excludes": [
+        "kick_right"
       ]
     },
     {
@@ -589,6 +601,13 @@
             "val": -0.12
           }
         ]
+      ],
+      "excludes": [
+        "touch_hip_left",
+        "touch_hip_right",
+        "raise_both_forward",
+        "arm_forward_left",
+        "arm_forward_right"
       ]
     },
     {
@@ -704,6 +723,10 @@
             "val": 130
           }
         ]
+      ],
+      "excludes": [
+        "touch_neck_right",
+        "hand_on_chest_right"
       ]
     },
     {
@@ -812,6 +835,10 @@
             "val": 130
           }
         ]
+      ],
+      "excludes": [
+        "touch_elbow_right",
+        "hand_on_chest_right"
       ]
     },
     {
@@ -869,7 +896,8 @@
         "raise_left",
         "raise_right",
         "arm_side_left",
-        "arm_side_right"
+        "arm_side_right",
+        "stretch_chest"
       ]
     },
     {
@@ -914,7 +942,8 @@
         "raise_right",
         "both_hands_up",
         "arm_diag_up_left",
-        "arm_diag_up_right"
+        "arm_diag_up_right",
+        "wave_both"
       ]
     },
     {
@@ -1042,7 +1071,9 @@
       "excludes": [
         "touch_head",
         "touch_forehead_left",
-        "touch_forehead_right"
+        "touch_forehead_right",
+        "touch_ear_right",
+        "touch_nose_right"
       ]
     },
     {
@@ -2096,7 +2127,11 @@
       ],
       "priority": 10,
       "excludes": [
-        "squat"
+        "squat",
+        "arm_forward_left",
+        "arm_forward_right",
+        "raise_both_forward",
+        "head_up"
       ]
     },
     {
@@ -2269,7 +2304,8 @@
             "val": -0.1
           }
         ]
-      ]
+      ],
+      "excludes": []
     },
     {
       "id": "kick_left",
@@ -2405,6 +2441,10 @@
             "val": -0.1
           }
         ]
+      ],
+      "excludes": [
+        "heel_butt_left",
+        "sit_floor"
       ]
     },
     {
@@ -2895,7 +2935,10 @@
       ],
       "priority": 30,
       "excludes": [
-        "touch_head"
+        "touch_head",
+        "touch_mouth_right",
+        "touch_forehead_right",
+        "touch_ear_right"
       ]
     },
     {

@@ -161,6 +161,23 @@ python scripts/build_launcher.py
 `星伴AI.exe` 需要与 `.venv/`、`server/`、`desktop/` 等一起放在项目目录内
 （后端仍由 `.venv` 中的 Python 启动）；开发调试时仍可直接运行 `星伴AI启动器.pyw`。
 
+### 2.6 采集真实标注数据（评估用，可选）
+
+```powershell
+# 打开摄像头，按 SPACE 保存当前姿态并标注；N/P 切换动作，0 保存"无动作"负样本，A 自动采样
+python scripts/collect_pose_dataset.py --output data/labeled/pose_eval.jsonl
+
+# 只标常见动作，可指定列表
+python scripts/collect_pose_dataset.py --actions raise_right,raise_left,touch_head
+
+# 校验数据集，再用真实标注重算 P/R/F1
+python scripts/collect_pose_dataset.py --validate data/labeled/pose_eval.jsonl
+python tests/evaluate_recognition.py --dataset data/labeled/pose_eval.jsonl
+```
+
+每条样本保存 33 个姿态关键点、可选 21 点手部关键点、人工标签和当时模型预测，
+`data/labeled/` 已加入 `.gitignore`，不会把儿童姿态数据提交到仓库。
+
 ### 3. 模型文件说明
 
 - `vision/models/pose_landmarker_full.task`：已随仓库提供（MediaPipe 姿态模型，约 9MB）
@@ -360,6 +377,19 @@ PDI（提示依赖指数）= Σpᵢ / (4N)，独立完成率 = 独立完成任�
 
 ## 更新日志
 
+- **v3.6**（2026-11）：真实标注数据闭环
+  - 新增 `scripts/collect_pose_dataset.py`：摄像头姿态采样与人工标注工具，
+    支持动作切换、负样本、自动采样、数据集校验，保存 33 点姿态与可选 21 点手部关键点
+  - `tests/evaluate_recognition.py` 支持读取真实标注 JSONL 中的手部关键点参与判定
+  - `data/labeled/` 加入 `.gitignore`，儿童姿态衍生数据不入库
+  - 新增 `tests/test_dataset_tools.py`（3/3 通过）
+- **v3.5**（2026-11）：识别评估与交叉误报治理
+  - 新增 `tests/evaluate_recognition.py`：支持内置合成样本与真实标注 JSONL，
+    输出分动作 Precision/Recall/F1、Micro/Macro 汇总、交叉误报矩阵
+    （`docs/recognition_eval.md` / `logs/recognition_eval.csv`）
+  - 内置样本回归指标：Micro P/R/F1 = 0.917/1.000/0.957，Macro = 0.941/0.971/0.951
+  - 根据评估结果补充 `data/actions.json` 的 `excludes` 压制关系，交叉误报
+    从 31 次降到 3 次，且不破坏 100 动作单测
 - **v3.4**（2026-11）：识别闭环 P1 增强
   - YOLO 接入 Ultralytics 内置 ByteTrack，检测结果带 `track_id`；
     人-物交互优先锁定离手最近的同名物品并按 ID 稳定跟踪，防同类物品串台

@@ -11,6 +11,8 @@ data/*.bak
 data/*.old
 data/sequence_logs/
 data/interaction_logs/
+# 人工标注的姿态评估数据（涉及儿童影像衍生数据，不入库）
+data/labeled/
 data.zip
 # 家庭校准采集的图片/标签/训练中间产物（数据，不入库）
 data/custom_dataset/
