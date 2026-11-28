@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""数据库模型：12 张规范表（数据库应用设计大赛核心设计）。
+"""数据库模型：14 张规范表（含 app_user 账号表）。
 
 表名与《星伴AI项目升级修改建议与实施路线》文档一致：
 child_profile / task_definition / task_step / scene_info / training_session /
@@ -37,6 +37,19 @@ from database.db import Base
 
 def now():
     return datetime.datetime.now()
+
+
+class AppUser(Base):
+    """家长/康复人员账号（密码只存 PBKDF2 哈希，不存明文）。"""
+    __tablename__ = "app_user"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(64), nullable=False, unique=True)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(16), default="parent")
+    active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=now)
+    last_login_at = Column(DateTime)
 
 
 class ChildInfo(Base):

@@ -20,7 +20,8 @@ from collections import deque
 import cv2
 
 from object_detector import load_model, detect_objects, draw_detections
-from pose_utils import hand_center  # noqa: F401  复用公共手掌中心（供 skill_task_session 导入）
+from pose_utils import (hand_center, hand_center_21, point_reliable,
+                        HAND_POINTS_L, HAND_POINTS_R)
 
 LOG_PATH = "data/interaction_logs/interaction_log.csv"
 
@@ -86,8 +87,8 @@ class InteractionDetector:
         self.state = new_state
         return changed
 
-    def update(self, lms, detections, now):
-        """输入姿态关键点和物品检测，返回 (state, evidence, changed)。"""
+    def update(self, lms, detections, now, hands=None):
+        """输入姿态关键点/手部 21 点和物品检测，返回 (state, evidence, changed)。"""
         # 1. 找目标物品（按名字匹配，取置信度最高者）
         target = None
         for det in detections:
@@ -122,9 +123,17 @@ class InteractionDetector:
         hand, hand_name = None, None
         prefer = self.preferred_hand in ("left", "right")
         for idx_pts, hname in self._hand_order():
-            try:
+            hx, hy = None, None
+            # 优先用 21 点掌心；手部模型未启用时回退到 Pose 4 点并做可靠性校验
+            if hands:
+                side = "L" if idx_pts == HAND_POINTS_L else "R"
+                c = hand_center_21(hands.get(side))
+                if c is not None:
+                    hx, hy = c
+            if (hx is None and len(lms) > max(idx_pts) and
+                    all(point_reliable(lms[i]) for i in idx_pts)):
                 hx, hy = hand_center(lms, idx_pts)
-            except IndexError:
+            if hx is None:
                 continue
             if prefer:
                 # 惯用手模式：_hand_order 把惯用手排第一，可见即采用

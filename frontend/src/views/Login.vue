@@ -12,7 +12,7 @@
           <div class="field">
             <el-input v-model="form.password" size="large" type="password" show-password placeholder="密码" @keyup.enter="submit" />
           </div>
-          <el-button class="btn-main" @click="submit">登 录</el-button>
+          <el-button class="btn-main" :loading="busy" @click="submit">登 录</el-button>
           <div class="links">
             <span @click="mode = 'register'">注册新账号</span>
             <span class="muted-link" @click="forgot">忘记密码？</span>
@@ -30,7 +30,7 @@
           <div class="field">
             <el-input v-model="form.confirm" size="large" type="password" show-password placeholder="再次输入密码" @keyup.enter="submit" />
           </div>
-          <el-button class="btn-main" @click="submit">注 册</el-button>
+          <el-button class="btn-main" :loading="busy" @click="submit">注 册</el-button>
           <div class="links">
             <span @click="backToLogin">返回登录</span>
           </div>
@@ -48,15 +48,15 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ensureDemoUser, login, register, isLoggedIn } from '../auth'
+import { login, register, isLoggedIn } from '../auth'
 
 const router = useRouter()
 const mode = ref('login')
 const form = ref({ username: '', password: '', confirm: '' })
+const busy = ref(false)
 
-onMounted(() => {
-  ensureDemoUser()
-  if (isLoggedIn()) router.replace('/')
+onMounted(async () => {
+  if (await isLoggedIn()) router.replace('/')
 })
 
 function backToLogin() {
@@ -69,32 +69,43 @@ function forgot() {
   ElMessage.info('演示版暂不支持找回密码，请使用演示账号或重新注册')
 }
 
-function submit() {
+async function submit() {
   const { username, password, confirm } = form.value
   if (!username.trim()) return ElMessage.warning('请输入用户名')
   if (!password) return ElMessage.warning('请输入密码')
+  if (busy.value) return
+  busy.value = true
+  try {
+    if (mode.value === 'register') {
+      if (password !== confirm) return ElMessage.warning('两次输入的密码不一致')
+      const r = await register(username, password)
+      if (!r.ok) return ElMessage.error(r.msg)
+      ElMessage.success('注册成功，请登录')
+      mode.value = 'login'
+      form.value.password = ''
+      form.value.confirm = ''
+      return
+    }
 
-  if (mode.value === 'register') {
-    if (password !== confirm) return ElMessage.warning('两次输入的密码不一致')
-    const r = register(username, password)
+    const r = await login(username, password)
     if (!r.ok) return ElMessage.error(r.msg)
-    ElMessage.success('注册成功，请登录')
-    mode.value = 'login'
-    form.value.password = ''
-    form.value.confirm = ''
-    return
+    ElMessage.success('欢迎回来')
+    router.replace('/')
+  } finally {
+    busy.value = false
   }
-
-  const r = login(username, password)
-  if (!r.ok) return ElMessage.error(r.msg)
-  ElMessage.success('欢迎回来')
-  router.replace('/')
 }
 
-function demoLogin() {
-  const r = login('demo', '123456')
-  if (!r.ok) return ElMessage.error(r.msg)
-  router.replace('/')
+async function demoLogin() {
+  if (busy.value) return
+  busy.value = true
+  try {
+    const r = await login('demo', '123456')
+    if (!r.ok) return ElMessage.error(r.msg)
+    router.replace('/')
+  } finally {
+    busy.value = false
+  }
 }
 </script>
 

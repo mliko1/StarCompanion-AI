@@ -13,6 +13,7 @@
 """
 
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -26,12 +27,64 @@ from PySide6.QtWidgets import (
 )
 
 BACKEND = "http://127.0.0.1:8000"
+TOKEN_FILE = os.path.join(os.environ.get("APPDATA", "."), "星伴AI", "desktop_token.txt")
 KIND_CN = {"strengthen": "需加强", "consolidate": "巩固",
            "new": "新动作", "review": "复习"}
 
 
+def _clear_token():
+    try:
+        os.remove(TOKEN_FILE)
+    except OSError:
+        pass
+
+
+def _load_token():
+    """本机桌面端令牌：后端重启后自动重新获取，儿童无需登录。"""
+    try:
+        with open(TOKEN_FILE, encoding="utf-8") as f:
+            token = f.read().strip()
+            if token:
+                return token
+    except OSError:
+        pass
+    try:
+        req = urllib.request.Request(
+            BACKEND + "/api/auth/desktop-token", data=b"{}",
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=3) as r:
+            token = json.loads(r.read().decode("utf-8"))["token"]
+        os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
+        with open(TOKEN_FILE, "w", encoding="utf-8") as f:
+            f.write(token)
+        return token
+    except Exception:
+        return None
+
+
+def _auth_headers(extra=None):
+    headers = dict(extra or {})
+    token = _load_token()
+    if token:
+        headers["Cookie"] = "xb_token=" + token
+    return headers
+
+
+def _open(request, timeout):
+    try:
+        return urllib.request.urlopen(request, timeout=timeout)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            _clear_token()
+            request.add_header("Cookie", "xb_token=" + (_load_token() or ""))
+            return urllib.request.urlopen(request, timeout=timeout)
+        raise
+
+
 def http_get(path):
-    with urllib.request.urlopen(BACKEND + path, timeout=2) as r:
+    req = urllib.request.Request(
+        BACKEND + path, headers=_auth_headers())
+    with _open(req, 2) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
@@ -39,8 +92,8 @@ def http_post(path, payload, timeout=30):
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         BACKEND + path, data=data,
-        headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+        headers=_auth_headers({"Content-Type": "application/json"}), method="POST")
+    with _open(req, timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
@@ -299,8 +352,9 @@ class MainWindow(QMainWindow):
     # ---------- 摄像头画面 ----------
     def _update_video(self):
         try:
-            req = urllib.request.Request(BACKEND + "/api/camera/snapshot_pose")
-            with urllib.request.urlopen(req, timeout=1) as r:
+            req = urllib.request.Request(
+                BACKEND + "/api/camera/snapshot_pose", headers=_auth_headers())
+            with _open(req, 1) as r:
                 data = r.read()
         except Exception:
             return

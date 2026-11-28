@@ -1,126 +1,125 @@
 <template>
-  <div>
+  <div class="reports-page">
     <div class="page-head">
       <h2 class="page-title">训练报告</h2>
       <div class="head-actions">
-        <el-select v-model="childId" placeholder="全部儿童" clearable style="width: 170px" @change="load">
+        <el-select v-model="childId" placeholder="全部儿童" clearable style="width: 160px" @change="reload">
           <el-option v-for="c in children" :key="c.id" :label="c.nickname" :value="c.id" />
         </el-select>
-        <el-button size="small" round @click="load">刷新数据</el-button>
+        <el-button size="small" @click="reload">刷新</el-button>
+        <el-button size="small" type="primary" @click="openLastReport">最近报告</el-button>
       </div>
     </div>
 
-    <el-card shadow="never" class="block">
-      <template #header>
-        <div class="card-head">
-          <span>个体化训练报告</span>
-          <el-button type="primary" size="small" round @click="openLastReport">查看最近训练报告</el-button>
-        </div>
-      </template>
-      <div class="report-intro">
-        <div class="intro-line"><span class="intro-label">报告内容</span><span>目标对照 · 能力现状 · 步骤明细 · 趋势与提示依赖 · 家庭建议 · 后续任务 · 家长反馈</span></div>
-        <div class="intro-line"><span class="intro-label">查看方式</span><span>点击右上角按钮查看最近一份，或在下方历史记录中点「查看报告」</span></div>
-      </div>
-    </el-card>
-
-    <el-card shadow="never" class="block">
-      <template #header>历史训练报告</template>
-      <div class="history-filter">
-        <el-select v-model="historyChild" placeholder="全部儿童" size="small" clearable style="width:140px">
-          <el-option v-for="c in children" :key="c.id" :label="c.nickname" :value="c.id" />
-        </el-select>
-        <el-date-picker v-model="historyRange" type="daterange" size="small" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width:250px" />
-        <el-button size="small" type="primary" plain @click="loadHistory">查询</el-button>
-      </div>
-      <el-table :data="historyReports" size="small" border v-loading="historyLoading" max-height="360" class="history-table">
-        <el-table-column prop="report_date" label="报告日期" width="112" align="center" />
-        <el-table-column label="儿童" width="96" align="center">
-          <template #default="{ row }">{{ childName(row.child_id) }}</template>
-        </el-table-column>
-        <el-table-column prop="task_name" label="训练任务" min-width="120" align="center" />
-        <el-table-column label="完成情况" width="132" align="center">
-          <template #default="{ row }"><el-tag size="small" :type="row.completed ? 'success' : 'warning'">{{ row.score_label || '—' }}</el-tag></template>
-        </el-table-column>
-        <el-table-column label="用时" width="86" align="center">
-          <template #default="{ row }">{{ row.elapsed_sec != null ? row.elapsed_sec + ' 秒' : '—' }}</template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="生成时间" min-width="148" align="center" />
-        <el-table-column label="操作" width="92" align="center" fixed="right">
-          <template #default="{ row }"><el-button size="small" link type="primary" @click="openSaved(row.report_id)">查看报告</el-button></template>
-        </el-table-column>
-      </el-table>
-      <div v-if="!historyReports.length && !historyLoading" class="empty-hint">暂无历史报告，完成一次训练后自动生成。</div>
-    </el-card>
-
-    <el-card shadow="never" class="block">
-      <template #header>总体数据分析解读</template>
-      <p class="interpretation">{{ interpretation || '正在加载…' }}</p>
-    </el-card>
-
-    <el-row :gutter="16">
-      <el-col :span="12" :md="6" v-for="card in cards" :key="card.label">
-        <el-card shadow="never" class="stat-card block">
-          <div class="stat-top">
-            <span class="stat-label">{{ card.label }}</span>
-            <LineIcon :name="card.icon" class="stat-ico" />
+    <el-tabs v-model="tab" class="report-tabs" @tab-change="onTabChange">
+      <el-tab-pane label="数据概览" name="overview">
+        <el-card shadow="never" class="block">
+          <template #header>总体情况</template>
+          <el-row :gutter="16" class="stat-row">
+            <el-col :span="12" :md="6" v-for="card in cards" :key="card.label">
+              <el-card shadow="never" class="stat-card">
+                <div class="stat-top">
+                  <span class="stat-label">{{ card.label }}</span>
+                  <LineIcon :name="card.icon" class="stat-ico" />
+                </div>
+                <div class="stat-value">{{ card.value }}</div>
+              </el-card>
+            </el-col>
+          </el-row>
+          <div class="overview-note">
+            <span class="note-label">分析解读</span>
+            <p class="interpretation">{{ interpretation || '正在加载…' }}</p>
           </div>
-          <div class="stat-value">{{ card.value }}</div>
         </el-card>
-      </el-col>
-    </el-row>
 
-    <div class="charts">
-      <div class="chart" ref="promptChart"></div>
-      <div class="chart" ref="sceneChart"></div>
-      <div class="chart wide" ref="trendChart"></div>
-    </div>
+        <div class="charts">
+          <div class="chart" ref="promptChart"></div>
+          <div class="chart" ref="sceneChart"></div>
+          <div class="chart wide" ref="trendChart"></div>
+        </div>
 
-    <el-card shadow="never" class="block">
-      <template #header>后续训练计划推荐（根据表现自动调整难度）</template>
-      <el-table :data="plan" size="small">
-        <el-table-column type="index" label="#" width="50" />
-        <el-table-column prop="name" label="训练任务" />
-        <el-table-column label="类型" width="90">
-          <template #default="{ row }">
-            <el-tag :type="kindType(row.kind)" size="small">{{ kindText(row.kind) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="难度" width="100">
-          <template #default="{ row }">
-            <span class="stars">{{ '★'.repeat(row.difficulty || 1) }}<span class="stars-off">{{ '★'.repeat(Math.max(0, 3 - (row.difficulty || 1))) }}</span></span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="reason" label="推荐理由" />
-      </el-table>
-      <div v-if="!plan.length" class="muted">暂无足够数据生成计划，完成几次训练后会自动生成</div>
-    </el-card>
+        <el-card shadow="never" class="block">
+          <template #header>后续训练计划推荐</template>
+          <el-table :data="plan" size="small">
+            <el-table-column type="index" label="#" width="50" />
+            <el-table-column prop="name" label="训练任务" />
+            <el-table-column label="类型" width="90">
+              <template #default="{ row }">
+                <el-tag :type="kindType(row.kind)" size="small">{{ kindText(row.kind) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="难度" width="100">
+              <template #default="{ row }">
+                <span class="stars">{{ '★'.repeat(row.difficulty || 1) }}<span class="stars-off">{{ '★'.repeat(Math.max(0, 3 - (row.difficulty || 1))) }}</span></span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="reason" label="推荐理由" />
+          </el-table>
+          <div v-if="!plan.length" class="muted">暂无足够数据生成计划，完成几次训练后会自动生成</div>
+        </el-card>
+      </el-tab-pane>
 
-    <el-card shadow="never" class="block">
-      <template #header>训练记录明细</template>
-      <el-table :data="sessions" size="small">
-        <el-table-column prop="task_name" label="任务" />
-        <el-table-column prop="child" label="儿童" width="90" />
-        <el-table-column prop="scene" label="场景" width="90" />
-        <el-table-column label="提示等级" width="100">
-          <template #default="{ row }">{{ promptLabels[row.prompt_level] || row.prompt_level }}</template>
-        </el-table-column>
-        <el-table-column label="结果" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.completed ? 'success' : 'danger'" size="small">
-              {{ row.completed ? '完成' : '未完成' }}
-            </el-tag>
+      <el-tab-pane label="历史报告" name="history">
+        <el-card shadow="never" class="block">
+          <template #header>
+            <div class="card-head">
+              <span>历史训练报告</span>
+              <div class="filter-inline">
+                <el-date-picker v-model="historyRange" type="daterange" size="small" value-format="YYYY-MM-DD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 250px" />
+                <el-button size="small" type="primary" plain @click="loadHistory">查询</el-button>
+              </div>
+            </div>
           </template>
-        </el-table-column>
-        <el-table-column prop="elapsed_sec" label="用时(秒)" width="90" />
-        <el-table-column label="操作" width="100">
-          <template #default="{ row }">
-            <el-button size="small" link type="primary" @click="openReport(row.session_id || row.id)">查看报告</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+          <el-table :data="historyReports" size="small" border v-loading="historyLoading" max-height="420" class="history-table">
+            <el-table-column prop="report_date" label="报告日期" width="112" align="center" />
+            <el-table-column label="儿童" width="96" align="center">
+              <template #default="{ row }">{{ childName(row.child_id) }}</template>
+            </el-table-column>
+            <el-table-column prop="task_name" label="训练任务" min-width="120" align="center" />
+            <el-table-column label="完成情况" width="132" align="center">
+              <template #default="{ row }"><el-tag size="small" :type="row.completed ? 'success' : 'warning'">{{ row.score_label || '—' }}</el-tag></template>
+            </el-table-column>
+            <el-table-column label="用时" width="86" align="center">
+              <template #default="{ row }">{{ row.elapsed_sec != null ? row.elapsed_sec + ' 秒' : '—' }}</template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="生成时间" min-width="148" align="center" />
+            <el-table-column label="操作" width="92" align="center" fixed="right">
+              <template #default="{ row }"><el-button size="small" link type="primary" @click="openSaved(row.report_id)">查看报告</el-button></template>
+            </el-table-column>
+          </el-table>
+          <div v-if="!historyReports.length && !historyLoading" class="empty-hint">暂无历史报告，完成一次训练后自动生成。</div>
+        </el-card>
+      </el-tab-pane>
 
-    <el-dialog v-model="reportVisible" title="训练分析报告 · 家长反馈" width="760px" top="3vh" class="pr-dialog">
+      <el-tab-pane label="训练记录" name="sessions">
+        <el-card shadow="never" class="block">
+          <template #header>训练记录明细</template>
+          <el-table :data="sessions" size="small">
+            <el-table-column prop="task_name" label="任务" />
+            <el-table-column prop="child" label="儿童" width="90" />
+            <el-table-column prop="scene" label="场景" width="90" />
+            <el-table-column label="提示等级" width="100">
+              <template #default="{ row }">{{ promptLabels[row.prompt_level] || row.prompt_level }}</template>
+            </el-table-column>
+            <el-table-column label="结果" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.completed ? 'success' : 'danger'" size="small">
+                  {{ row.completed ? '完成' : '未完成' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="elapsed_sec" label="用时(秒)" width="90" />
+            <el-table-column label="操作" width="100">
+              <template #default="{ row }">
+                <el-button size="small" link type="primary" @click="openReport(row.session_id || row.id)">查看报告</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+    </el-tabs>
+
+    <el-dialog v-model="reportVisible" title="训练分析报告 · 家长反馈" width="820px" top="3vh" class="pr-dialog">
       <template v-if="report">
         <div class="pr-head">
           <div>
@@ -130,12 +129,12 @@
           <el-tag :type="report.summary.completed ? 'success' : 'warning'" effect="dark">{{ report.summary.score_label }}</el-tag>
         </div>
 
-        <el-divider content-position="left">一、本次训练要点速览</el-divider>
+        <div class="pr-section">一、本次训练要点速览</div>
         <ul class="pr-list highlights">
           <li v-for="(h, i) in report.highlights" :key="i">{{ h }}</li>
         </ul>
 
-        <el-divider content-position="left">二、目标完成情况（基线 → 当前 → 目标）</el-divider>
+        <div class="pr-section">二、目标完成情况（基线 → 当前 → 目标）</div>
         <el-table :data="[report.goal_progress]" size="small" border class="pr-table">
           <el-table-column prop="goal" label="训练目标" min-width="110" />
           <el-table-column label="基线" min-width="130">
@@ -145,14 +144,14 @@
           <el-table-column prop="target" label="下一阶段目标" min-width="190" />
         </el-table>
 
-        <el-divider content-position="left">三、领域能力现状（{{ report.ability.dimension }}）</el-divider>
+        <div class="pr-section">三、领域能力现状（{{ report.ability.dimension }}）</div>
         <div class="pr-grid">
           <div class="pr-card ok"><b>优势 / 亮点</b><p>{{ report.ability.strength }}</p></div>
           <div class="pr-card warn"><b>待支持项</b><p>{{ report.ability.weakness }}</p></div>
         </div>
         <ul class="pr-list"><li v-for="(s, i) in report.ability.support_needed" :key="i">{{ s }}</li></ul>
 
-        <el-divider content-position="left">四、步骤完成明细与数据说明</el-divider>
+        <div class="pr-section">四、步骤完成明细与数据说明</div>
         <el-table :data="report.step_details" size="small" border class="pr-table">
           <el-table-column prop="order" label="#" width="42" />
           <el-table-column prop="name" label="步骤" min-width="140" />
@@ -163,16 +162,16 @@
         </el-table>
         <el-alert :type="report.data_quality.level === 'good' ? 'success' : 'warning'" :closable="false" :title="report.data_quality.note" class="pr-alert" />
 
-        <el-divider content-position="left">五、近期趋势与提示依赖</el-divider>
+        <div class="pr-section">五、近期趋势与提示依赖</div>
         <div class="pr-grid">
           <div class="pr-card ok"><b>近期趋势</b><p>{{ report.trend.summary }}</p><p class="pr-mini">最近 5 次完成 {{ report.trend.recent_completion }}</p></div>
           <div class="pr-card warn"><b>提示依赖度 PDI {{ report.prompt_dependency.pdi }}</b><p>{{ report.prompt_dependency.comment }}</p></div>
         </div>
 
-        <el-divider content-position="left">六、家庭延伸训练建议</el-divider>
+        <div class="pr-section">六、家庭延伸训练建议</div>
         <ul class="pr-list"><li v-for="(t, i) in report.home_tips" :key="i">{{ t }}</li></ul>
 
-        <el-divider content-position="left">七、后续训练任务与难度建议</el-divider>
+        <div class="pr-section">七、后续训练任务与难度建议</div>
         <el-table :data="report.next_plan" size="small" border class="pr-table">
           <el-table-column type="index" label="#" width="42" />
           <el-table-column prop="name" label="任务" min-width="110" />
@@ -185,7 +184,7 @@
           <el-table-column prop="prompt_suggestion" label="提示建议" min-width="180" />
         </el-table>
 
-        <el-divider content-position="left">八、家长反馈（可选）</el-divider>
+        <div class="pr-section">八、家长反馈（可选）</div>
         <el-form label-position="top" size="small">
           <el-form-item label="今天在家的观察">
             <el-input v-model="report.parent_feedback.observation" type="textarea" :rows="2" placeholder="如：孩子主动模仿了动作，情绪很好" />
@@ -225,8 +224,8 @@ const plan = ref([])
 const reportVisible = ref(false)
 const report = ref(null)
 const historyReports = ref([])
-const historyChild = ref(null)
 const historyRange = ref(null)
+const tab = ref('overview')
 const historyLoading = ref(false)
 const promptChart = ref(null)
 const sceneChart = ref(null)
@@ -260,6 +259,18 @@ async function load() {
   renderCharts(d.data)
 }
 
+function reload() {
+  load()
+  loadHistory()
+}
+
+function onTabChange(name) {
+  if (name !== 'overview') return
+  nextTick(() => {
+    Object.values(_charts).forEach((c) => c && c.resize())
+  })
+}
+
 async function loadChildren() {
   try {
     const c = await api.children()
@@ -284,7 +295,7 @@ async function loadHistory() {
   historyLoading.value = true
   try {
     const params = {}
-    if (historyChild.value) params.child_id = historyChild.value
+    if (childId.value) params.child_id = childId.value
     if (historyRange.value && historyRange.value.length === 2) {
       params.date_from = historyRange.value[0]
       params.date_to = historyRange.value[1]
@@ -379,10 +390,14 @@ setInterval(load, 10000)
 </script>
 
 <style scoped>
-.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
 .page-head .page-title { margin-bottom: 0; }
-.head-actions { display: flex; align-items: center; gap: 10px; }
-.interpretation { color: #3f4d63; line-height: 1.9; font-size: 14px; margin: 0; }
+.head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report-tabs :deep(.el-tabs__header) { margin-bottom: 16px; }
+.stat-row { margin-bottom: 6px; }
+.overview-note { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: #f7f9fc; border-radius: 10px; }
+.note-label { flex: 0 0 60px; color: #98a2b8; font-size: 12px; padding-top: 2px; }
+.interpretation { color: #3f4d63; line-height: 1.9; font-size: 14px; margin: 0; flex: 1; }
 .stars { color: #e8a13c; letter-spacing: 1px; }
 .stars-off { color: #d9dee8; }
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
@@ -396,14 +411,16 @@ setInterval(load, 10000)
 }
 .wide { grid-column: 1 / -1; }
 @media (max-width: 768px) { .charts { grid-template-columns: 1fr; } .wide { grid-column: 1; } }
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.report-intro { display: flex; flex-direction: column; gap: 10px; }
-.intro-line { display: flex; align-items: flex-start; gap: 12px; font-size: 13px; color: #4b5568; line-height: 1.7; }
-.intro-label { flex: 0 0 60px; color: #98a2b8; font-size: 12px; padding-top: 1px; }
-.history-filter { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 0 14px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.filter-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .history-table { width: 100%; }
 .empty-hint { color: #a3a9bd; font-size: 12px; padding: 12px 0; text-align: center; }
 .highlights { background: #f5f8ff; border-radius: 8px; padding: 10px 14px 10px 30px; }
+.pr-section {
+  margin: 18px 0 10px; padding: 8px 12px; border-radius: 8px;
+  background: #eef4fd; color: #2c5f9e; font-size: 14px; font-weight: 600;
+}
+.pr-section:first-of-type { margin-top: 6px; }
 .pr-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .pr-title { font-size: 19px; font-weight: 700; color: #1f2430; }
 .pr-sub { color: #8b93a5; font-size: 12px; margin-top: 5px; }
@@ -421,5 +438,4 @@ setInterval(load, 10000)
 .pr-disclaimer { color: #a3a9bd; font-size: 11px; line-height: 1.7; margin: 14px 0 0; }
 :deep(.pr-dialog) { margin-top: 2vh !important; }
 :deep(.pr-dialog .el-dialog__body) { max-height: 74vh; overflow-y: auto; padding-top: 8px; }
-:deep(.pr-dialog .el-divider) { margin: 16px 0 12px; }
 </style>

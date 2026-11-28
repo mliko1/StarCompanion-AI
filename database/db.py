@@ -2,7 +2,7 @@
 """数据库引擎与会话（SQLAlchemy 2.x，SQLite）。
 
 说明：
-- 数据库文件固定为 data/xingban.db（规范 11 表）。
+- 数据库文件固定为 data/xingban.db（规范 14 表，含账号表）。
 - check_same_thread=False：FastAPI 与后台线程共享连接所需。
 - 原 server/db.py（原生 sqlite3）已备份为 server/db.py.bak，不再使用。
 """

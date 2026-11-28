@@ -30,6 +30,7 @@ import os
 from collections import namedtuple
 
 from clap_core import point_reliable
+from pose_utils import body_scale, hand_center_21
 from action_base import clap_check, ClapCounter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -69,24 +70,26 @@ def _scaled_val(f, op, val, scale):
     return val * scale
 
 
-def _pt_indices(p):
-    """返回点引用涉及的关键点索引集合。"""
+def _pt_indices(p, hands=None):
+    """返回点引用涉及的关键点索引集合；使用有效手部 21 点时不再依赖 Pose 手点。"""
     if isinstance(p, int):
         return {p}
     if p.startswith("mid:"):
         _, i, j = p.split(":")
         return {int(i), int(j)}
     if p == "hc:L":
-        return {15, 17, 19, 21}
+        return (set() if hands and hand_center_21(hands.get("L")) is not None
+                else {15, 17, 19, 21})
     if p == "hc:R":
-        return {16, 18, 20, 22}
+        return (set() if hands and hand_center_21(hands.get("R")) is not None
+                else {16, 18, 20, 22})
     if p in ("chest", "belly"):
         return {11, 12, 23, 24}
     raise ValueError(f"未知点引用: {p}")
 
 
-def _resolve(lms, p):
-    """点引用 -> Pt 坐标。"""
+def _resolve(lms, p, hands=None):
+    """点引用 -> Pt 坐标；优先使用 MediaPipe Hands 的 21 点掌心。"""
     if isinstance(p, int):
         lm = lms[p]
         return Pt(lm.x, lm.y, lm.z, lm.visibility)
@@ -95,6 +98,11 @@ def _resolve(lms, p):
         i, j = int(i), int(j)
         return Pt((lms[i].x + lms[j].x) / 2, (lms[i].y + lms[j].y) / 2,
                   0.0, min(lms[i].visibility, lms[j].visibility))
+    if p in ("hc:L", "hc:R") and hands:
+        side = "L" if p == "hc:L" else "R"
+        c = hand_center_21(hands.get(side))
+        if c is not None:
+            return Pt(c[0], c[1], 0.0, 1.0)
     if p == "hc:L":
         idx = [15, 17, 19, 21]
     elif p == "hc:R":
@@ -123,28 +131,36 @@ def _angle(a, b, c):
     return math.degrees(math.acos(cos))
 
 
-def _eval(lms, cond, scale=1.0):
+def _eval(lms, cond, scale=1.0, hands=None, geom_scale=1.0):
     f = cond["f"]
     if f == "dy":
-        v = _resolve(lms, cond["a"]).y - _resolve(lms, cond["b"]).y
+        v = (_resolve(lms, cond["a"], hands).y -
+             _resolve(lms, cond["b"], hands).y) * geom_scale
     elif f == "dx":
-        v = _resolve(lms, cond["a"]).x - _resolve(lms, cond["b"]).x
+        v = (_resolve(lms, cond["a"], hands).x -
+             _resolve(lms, cond["b"], hands).x) * geom_scale
     elif f == "dist":
-        v = _hypot(_resolve(lms, cond["a"]), _resolve(lms, cond["b"]))
+        v = _hypot(_resolve(lms, cond["a"], hands),
+                   _resolve(lms, cond["b"], hands)) * geom_scale
     elif f == "ratio":
-        v = _hypot(_resolve(lms, cond["a"]), _resolve(lms, cond["b"])) / \
-            max(_hypot(_resolve(lms, cond["c"]), _resolve(lms, cond["d"])), 1e-6)
+        v = _hypot(_resolve(lms, cond["a"], hands),
+                   _resolve(lms, cond["b"], hands)) / \
+            max(_hypot(_resolve(lms, cond["c"], hands),
+                       _resolve(lms, cond["d"], hands)), 1e-6)
     elif f == "angle":
-        v = _angle(_resolve(lms, cond["a"]), _resolve(lms, cond["b"]),
-                   _resolve(lms, cond["c"]))
+        v = _angle(_resolve(lms, cond["a"], hands),
+                   _resolve(lms, cond["b"], hands),
+                   _resolve(lms, cond["c"], hands))
     elif f == "dy_ratio":
         # 肩宽归一化的高低比：(b.y - a.y) / dist(c, d)，正值= a 比 b 高。
         # 对人物远近/体型免疫（P1 多条件举手用）。
-        v = (_resolve(lms, cond["b"]).y - _resolve(lms, cond["a"]).y) / \
-            max(_hypot(_resolve(lms, cond["c"]), _resolve(lms, cond["d"])), 1e-6)
+        v = (_resolve(lms, cond["b"], hands).y -
+             _resolve(lms, cond["a"], hands).y) / \
+            max(_hypot(_resolve(lms, cond["c"], hands),
+                       _resolve(lms, cond["d"], hands)), 1e-6)
     elif f == "vis":
         # 关键点可见性（置信度），供规则内显式门控。
-        v = _resolve(lms, cond["a"]).visibility
+        v = _resolve(lms, cond["a"], hands).visibility
     else:
         raise ValueError(f"未知特征: {f}")
     val = _scaled_val(f, cond["op"], cond["val"], scale)
@@ -187,7 +203,7 @@ def _resolve_conflicts(hits, actions, protect=None):
 
 
 def detect_actions(lms, actions=None, amplitude_scale=1.0,
-                   allowed=None, protect=None):
+                   allowed=None, protect=None, hands=None, normalize_scale=True):
     """返回命中的所有动作 id 列表。lms 为原始关键点。
 
     规则结构：a["rules"] 是一组条件组（组内 AND，组间 OR）。
@@ -204,6 +220,8 @@ def detect_actions(lms, actions=None, amplitude_scale=1.0,
         return []
     actions = actions if actions is not None else load_actions()
     allow_set = set(allowed) if allowed is not None else None
+    # 身体尺度归一：把不同远近的孩子投影回参考肩宽，阈值不必按距离手调。
+    geom_scale = 1.0 / (body_scale(lms) if normalize_scale else 1.0)
     hits = set()
     for a in actions:
         if allow_set is not None and a["id"] not in allow_set:
@@ -213,12 +231,12 @@ def detect_actions(lms, actions=None, amplitude_scale=1.0,
             for c in group:
                 for key in ("a", "b", "c", "d"):
                     if key in c:
-                        needed |= _pt_indices(c[key])
+                        needed |= _pt_indices(c[key], hands)
         if not all(point_reliable(lms[i], min_visibility=a.get("min_visibility", 0.3))
                    for i in needed):
             continue
-        if any(all(_eval(lms, c, amplitude_scale) for c in group)
-               for group in a["rules"]):
+        if any(all(_eval(lms, c, amplitude_scale, hands, geom_scale)
+                   for c in group) for group in a["rules"]):
             hits.add(a["id"])
     return _resolve_conflicts(hits, actions, protect=protect)
 
@@ -247,18 +265,25 @@ class ActionTracker:
         self.stable_frames = max(1, int(stable_frames))
         self._clap = ClapCounter(speed_scale=speed_scale)
         self._streak = {}
+        self._last_frame_id = None
 
     def reset(self):
         self._clap.reset()
         self._streak.clear()
+        self._last_frame_id = None
 
-    def detect(self, lms, now):
+    def detect(self, lms, now, hands=None, frame_id=None):
+        if frame_id is not None:
+            if frame_id == self._last_frame_id:
+                return []
+            self._last_frame_id = frame_id
         hits = detect_actions(lms, self.actions,
                               amplitude_scale=self.amplitude_scale,
-                              allowed=self.allowed, protect=self.protect)
+                              allowed=self.allowed, protect=self.protect,
+                              hands=hands)
         # 每帧都维护 clap 的 ratio 历史（骤降防伪需要"分开→合拢"的完整
         # 时序，不能只在单帧命中 clap 时才更新，否则高 ratio 入不了历史）。
-        contact, ratio = clap_check(lms, self._clap.contact)
+        contact, ratio = clap_check(lms, self._clap.contact, hands=hands)
         if contact is None:
             self._clap.contact = False
         else:

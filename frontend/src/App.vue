@@ -10,7 +10,13 @@
           <span class="icon"><LineIcon :name="item.icon" /></span><span>{{ item.title }}</span>
         </router-link>
       </nav>
-      <div class="sidebar-foot">家庭康复训练辅助</div>
+      <div class="sidebar-foot">
+        <div class="user-line">
+          <span class="user-name">{{ user || '未登录' }}</span>
+          <el-button link type="primary" @click="onLogout">退出登录</el-button>
+        </div>
+        <div class="foot-tip">家庭康复训练辅助</div>
+      </div>
     </aside>
 
     <main class="content" :class="{ 'content-full': isLogin || isScreen }">
@@ -27,9 +33,21 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import LineIcon from './components/LineIcon.vue'
+import { currentUser, logout } from './auth'
+
+const user = ref(currentUser())
+const router = useRouter()
+
+async function onLogout() {
+  await logout()
+  user.value = ''
+  router.replace('/login')
+}
+
+watch(() => route.path, () => { user.value = currentUser() })
 
 const menus = [
   { path: '/', title: '首页', icon: 'home' },
@@ -115,6 +133,14 @@ body {
 .nav-item.active .icon { color: var(--primary); }
 .icon { width: 24px; display: flex; align-items: center; justify-content: center; }
 .sidebar-foot { color: #8296ae; font-size: 12px; text-align: center; padding-top: 12px; }
+.user-line {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; margin-bottom: 8px;
+  background: #eef2f8; border-radius: 8px;
+}
+.user-name { color: #344054; font-weight: 600; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-line .el-button { font-size: 12px; padding: 0; }
+.foot-tip { color: #8296ae; }
 
 /* ---------- 内容区 ---------- */
 .content { margin-left: 224px; padding: 40px 48px 56px; min-height: 100vh; position: relative; }

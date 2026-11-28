@@ -1,6 +1,20 @@
 import axios from 'axios'
 
-const http = axios.create({ baseURL: '', timeout: 10000 })
+const http = axios.create({ baseURL: '', timeout: 10000, withCredentials: true })
+
+http.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    if (err.response && err.response.status === 401 &&
+        !window.location.hash.startsWith('#/login')) {
+      localStorage.removeItem('xb_user')
+      window.location.hash = '#/login'
+    }
+    return Promise.reject(err)
+  },
+)
+
+export { http }
 
 export default {
   // 基础

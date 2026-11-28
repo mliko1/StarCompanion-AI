@@ -14,9 +14,9 @@ raise_hand / clap_hands / task_session 以及后端服务共用，消除各模�
 import math
 from collections import deque
 
-from pose_utils import (angle_at, dist2d, hand_center, point_reliable,
-                        L_SHOULDER, R_SHOULDER, L_ELBOW, R_ELBOW,
-                        L_WRIST, R_WRIST, L_HIP, R_HIP)
+from pose_utils import (angle_at, dist2d, hand_center, hand_center_21,
+                        point_reliable, L_SHOULDER, R_SHOULDER, L_ELBOW,
+                        R_ELBOW, L_WRIST, R_WRIST, L_HIP, R_HIP)
 
 # ---------------------------------------------------------------------------
 # 拍手判定参数（实测标定）
@@ -77,17 +77,24 @@ def raise_check(lms, side, was_raised, min_elbow=RAISE_ELBOW_MIN,
     return raised, angle
 
 
-def clap_check(lms, was_contact):
+def clap_check(lms, was_contact, hands=None):
     """拍手判定（掌心距/肩宽比例 + 胸线条件 + 迟滞）。
 
     返回 (contact, ratio)。None 表示关键点不可靠。
-    注意：lms 应传原始（未平滑）关键点。"""
+    注意：lms 应传原始（未平滑）关键点；hands 为 21 点手部识别结果，
+    可用时用 21 点掌心，避免 Pose 4 点掌心把"靠近"误判成"合拢"。"""
     lw, rw = lms[L_WRIST], lms[R_WRIST]
     ls, rs = lms[L_SHOULDER], lms[R_SHOULDER]
     if not all(point_reliable(p) for p in (lw, rw, ls, rs)):
         return None, 0.0
-    lcx, lcy = hand_center(lms, "L")
-    rcx, rcy = hand_center(lms, "R")
+    l_center = hand_center_21(hands.get("L")) if hands else None
+    r_center = hand_center_21(hands.get("R")) if hands else None
+    if l_center and r_center:
+        lcx, lcy = l_center
+        rcx, rcy = r_center
+    else:
+        lcx, lcy = hand_center(lms, "L")
+        rcx, rcy = hand_center(lms, "R")
     shoulder = dist2d(ls, rs) or 1e-6
     ratio = math.hypot(lcx - rcx, lcy - rcy) / shoulder
 

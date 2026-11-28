@@ -25,6 +25,10 @@ L_HIP, R_HIP = 23, 24
 HAND_POINTS_L = (15, 17, 19, 21)
 HAND_POINTS_R = (16, 18, 20, 22)
 
+# MediaPipe Hands 21 点中的掌心五点：手腕 + 食指/中指/无名指/小指掌指关节。
+# 比 Pose 的 4 点掌心更稳，且能区分握拳/张手。
+HAND_PALM_21 = (0, 5, 9, 13, 17)
+
 HEAD_POINTS = [0, 7, 8]  # 鼻尖、左耳、右耳
 
 # ---------------------------------------------------------------------------
@@ -45,6 +49,16 @@ POSE_CONNECTIONS_FULL = [
     (0, 1), (1, 2), (2, 3), (3, 7), (0, 4), (4, 5), (5, 6), (7, 8),
     (9, 10),
 ] + POSE_CONNECTIONS
+
+# 展示用精简骨架：只画身体轮廓与四肢，不画面部/手指细节。
+# 家长大屏上脸部线条太密会干扰观察，头部只用「肩膀→头部中心」两根线示意。
+POSE_CONNECTIONS_DISPLAY = [
+    (11, 12), (11, 0), (12, 0),
+    (11, 23), (12, 24), (23, 24),
+    (11, 13), (13, 15), (12, 14), (14, 16),
+    (23, 25), (25, 27), (27, 29), (29, 31),
+    (24, 26), (26, 28), (28, 30), (30, 32),
+]
 
 # ---------------------------------------------------------------------------
 # 关键点可靠性评估
@@ -110,6 +124,35 @@ def hand_center(lms, side=None, idx_points=None):
     x = sum(lms[i].x for i in idx_points) / len(idx_points)
     y = sum(lms[i].y for i in idx_points) / len(idx_points)
     return x, y
+
+
+def hand_center_21(hand_lms):
+    """从 MediaPipe Hands 的 21 个关键点取掌心（手腕 + 4 个掌指关节）。
+
+    hand_lms 为 21 个 NormalizedLandmark/Pt；任一点越界则返回 None，
+    调用方据此回退到 Pose 的 4 点掌心，避免错手污染判定。
+    """
+    if not hand_lms or len(hand_lms) < 21:
+        return None
+    pts = [hand_lms[i] for i in HAND_PALM_21]
+    if any(not (0 <= p.x <= 1 and 0 <= p.y <= 1) for p in pts):
+        return None
+    return (sum(p.x for p in pts) / len(pts),
+            sum(p.y for p in pts) / len(pts))
+
+
+def body_scale(lms):
+    """肩宽作为身体尺度基准，用于把绝对位移特征归一化。
+
+    归一化坐标会随孩子离摄像头远近变化；用肩宽做尺子，
+    同一个动作在不同距离下得到相近的特征值。参考肩宽 0.20 与现有
+    actions.json 阈值标定时的中性姿态一致，保证老规则行为不变。
+    """
+    try:
+        w = dist2d(lms[11], lms[12])
+    except (IndexError, AttributeError, TypeError):
+        return 1.0
+    return w / 0.20 if w > 1e-6 else 1.0
 
 
 def draw_pos(lm, w, h):

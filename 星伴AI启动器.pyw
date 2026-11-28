@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
-"""星伴AI 家长一键启动器（双击运行，无黑色命令行窗口）。
+"""星伴AI 家长一键启动器（产品入口为 星伴AI.exe，双击无黑色命令行窗口）。
 
 家长使用：
-  双击本文件 → 出现一个窗口 → 点「打开训练系统」
+  双击桌面「星伴AI」图标 → 出现一个窗口 → 点「打开训练系统」
   自动启动后端、打开浏览器、就绪后显示地址；点「停止系统」即可关闭。
-  也可点「创建桌面快捷方式」，以后从桌面图标打开。
 
-技术：tkinter（Python 标准库）+ subprocess；不依赖额外包。
+开发使用：
+  双击 星伴AI启动器.pyw 也可运行；运行 `python scripts/build_launcher.py`
+  可打包出 星伴AI.exe 并把快捷方式装到桌面。
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -18,11 +20,16 @@ import tkinter as tk
 import webbrowser
 import urllib.request
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-PYW = sys.executable
+if getattr(sys, "frozen", False):
+    ROOT = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    ROOT = os.path.dirname(os.path.abspath(__file__))
+
 PY = os.path.join(ROOT, ".venv", "Scripts", "python.exe")
 if not os.path.exists(PY):
-    PY = sys.executable
+    PY = shutil.which("python") or shutil.which("python3") or sys.executable
+    if getattr(sys, "frozen", False):
+        PY = ""
 BACKEND_URL = "http://127.0.0.1:8000"
 
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
@@ -36,35 +43,99 @@ def is_ready():
         return False
 
 
+def _desktop_dir():
+    home = os.path.expanduser("~")
+    candidates = [
+        os.path.join(home, "Desktop"),
+        os.path.join(home, "OneDrive", "Desktop"),
+        os.path.join(os.environ.get("PUBLIC", r"C:\Users\Public"), "Desktop"),
+    ]
+    for path in candidates:
+        if os.path.isdir(path):
+            return path
+    return ""
+
+
+def _shortcut_paths():
+    paths = []
+    desktop = _desktop_dir()
+    if desktop:
+        paths.append(os.path.join(desktop, "星伴AI.lnk"))
+    programs = os.path.join(
+        os.environ.get("APPDATA", ""), "Microsoft", "Windows",
+        "Start Menu", "Programs")
+    if os.path.isdir(programs):
+        paths.append(os.path.join(programs, "星伴AI.lnk"))
+    return paths
+
+
 def create_shortcut():
-    """在桌面创建「星伴AI」快捷方式（VBS 生成 .lnk，兼容中文路径）。"""
-    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    if not os.path.isdir(desktop):
-        desktop = os.path.join(os.path.expanduser("~"), "OneDrive", "Desktop")
-    if not os.path.isdir(desktop):
-        return False, "找不到桌面目录"
-    vbs = os.path.join(ROOT, "_make_shortcut.vbs")
-    lnk = os.path.join(desktop, "星伴AI.lnk")
-    target = os.path.join(ROOT, "星伴AI启动器.pyw")
-    script = (
-        'Set ws = CreateObject("WScript.Shell")\n'
-        f'sc = ws.CreateShortcut("{lnk}")\n'
-        f'sc.TargetPath = "{PYW}"\n'
-        f'sc.Arguments = """{target}"""\n'
-        f'sc.WorkingDirectory = "{ROOT}"\n'
-        f'sc.IconLocation = "{PYW},0"\n'
-        'sc.Description = "星伴AI 儿童康复训练系统"\n'
-        'sc.Save\n'
+    """在桌面和开始菜单创建「星伴AI」入口，兼容中文路径与打包后的 exe。"""
+    paths = _shortcut_paths()
+    if not paths:
+        return False, "找不到桌面或开始菜单目录"
+
+    if getattr(sys, "frozen", False):
+        target = os.path.abspath(sys.executable)
+        arguments = ""
+        icon = target + ",0"
+    else:
+        target = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+        if not os.path.exists(target):
+            target = sys.executable
+        arguments = '"' + os.path.join(ROOT, "星伴AI启动器.pyw") + '"'
+        icon = target + ",0"
+
+    # 路径通过环境变量传入 PowerShell，脚本本身全 ASCII，彻底避开中文编码问题
+    env = os.environ.copy()
+    env.update(XB_PATHS="|".join(paths), XB_TARGET=target, XB_ARGS=arguments,
+               XB_WORKDIR=ROOT, XB_ICON=icon)
+    ps = (
+        "$ws = New-Object -ComObject WScript.Shell; "
+        "foreach ($p in ($env:XB_PATHS -split '\\|')) { "
+        "$sc = $ws.CreateShortcut($p); "
+        "$sc.TargetPath = $env:XB_TARGET; "
+        "$sc.Arguments = $env:XB_ARGS; "
+        "$sc.WorkingDirectory = $env:XB_WORKDIR; "
+        "$sc.IconLocation = $env:XB_ICON; "
+        "$sc.Description = '星伴AI 儿童康复训练系统'; "
+        "$sc.Save() }"
     )
     try:
-        with open(vbs, "w", encoding="utf-8") as f:
-            f.write(script)
-        subprocess.run(["cscript", "//nologo", vbs],
-                       creationflags=CREATE_NO_WINDOW, check=True)
-        os.remove(vbs)
-        return True, f"已创建桌面快捷方式：{lnk}"
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+            env=env, capture_output=True, text=True, timeout=20,
+            creationflags=CREATE_NO_WINDOW)
+        if r.returncode == 0 and all(os.path.exists(p) for p in paths):
+            return True, f"已创建快捷方式 {len(paths)} 处（桌面 / 开始菜单）"
+        raise RuntimeError((r.stderr or r.stdout or "未知错误").strip()[:200])
     except Exception as e:
-        return False, f"创建失败：{e}"
+        # 兜底：VBS 用系统 ANSI 编码写到临时目录，避免 cscript 按 GBK 解析 UTF-8 中文
+        try:
+            import tempfile
+            q = lambda s: s.replace('"', '""')
+            vbs = os.path.join(tempfile.gettempdir(), "_xingban_shortcut.vbs")
+            arr = ", ".join(f'"{q(p)}"' for p in paths)
+            script = (
+                'Set ws = CreateObject("WScript.Shell")\n'
+                f'For Each p In Array({arr})\n'
+                'sc = ws.CreateShortcut(p)\n'
+                f'sc.TargetPath = "{q(target)}"\n'
+                f'sc.Arguments = "{q(arguments)}"\n'
+                f'sc.WorkingDirectory = "{q(ROOT)}"\n'
+                f'sc.IconLocation = "{q(icon)}"\n'
+                'sc.Description = "星伴AI 儿童康复训练系统"\n'
+                'sc.Save\n'
+                'Next\n'
+            )
+            with open(vbs, "w", encoding="mbcs") as f:
+                f.write(script)
+            subprocess.run(["cscript", "//nologo", vbs], check=True,
+                           creationflags=CREATE_NO_WINDOW, timeout=20)
+            os.remove(vbs)
+            return True, f"已创建快捷方式 {len(paths)} 处（桌面 / 开始菜单）"
+        except Exception as e2:
+            return False, f"创建失败：{e}；兜底失败：{e2}"
 
 
 class Launcher(tk.Tk):
@@ -110,6 +181,9 @@ class Launcher(tk.Tk):
         if is_ready():
             self._set("系统已经在运行，正在打开浏览器…", "#2e9e6b")
             webbrowser.open(BACKEND_URL)
+            return
+        if not PY or not os.path.exists(PY):
+            self._set("找不到 Python 运行环境，请确认 .venv 与 exe 在同一目录", "#a12d2d")
             return
         self._set("正在启动，请稍候约 10 秒…", "#a06a1f")
         try:
@@ -159,4 +233,8 @@ class Launcher(tk.Tk):
 
 
 if __name__ == "__main__":
+    if "--shortcut" in sys.argv:
+        ok, msg = create_shortcut()
+        print(msg)
+        sys.exit(0 if ok else 1)
     Launcher().mainloop()

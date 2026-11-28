@@ -89,10 +89,26 @@ def seed_child():
         db.close()
 
 
+def seed_users():
+    """首次启动创建演示账号 demo / 123456（密码只存哈希）。"""
+    from services.auth_service import hash_password
+    db = SessionLocal()
+    try:
+        if db.query(models.AppUser).count() == 0:
+            db.add(models.AppUser(username="demo",
+                                  password_hash=hash_password("123456")))
+            db.commit()
+            return 1
+        return 0
+    finally:
+        db.close()
+
+
 def seed_all():
     return {
         "tasks": seed_tasks(),
         "scenes": seed_scenes(),
         "models": seed_models(),
         "children": seed_child(),
+        "users": seed_users(),
     }

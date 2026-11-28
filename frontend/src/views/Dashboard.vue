@@ -28,6 +28,9 @@
         <div class="status-line"><span class="k">摄像头</span><span class="v">{{ status.camera && status.camera.running ? '运行中' : '未启动' }}</span></div>
         <div class="status-line" v-if="status.camera && status.camera.person_detected"><span class="k">人物</span><span class="v">已检测到</span></div>
       </template>
+      <template v-else-if="loadFailed">
+        <div class="muted">登录状态已失效或数据加载失败，请重新登录后再查看。</div>
+      </template>
       <template v-else>加载中…</template>
     </el-card>
 
@@ -66,6 +69,7 @@ import LineIcon from '../components/LineIcon.vue'
 const router = useRouter()
 const stats = ref(null)
 const status = ref(null)
+const loadFailed = ref(false)
 const sessions = ref([])
 const suggestions = ref([])
 
@@ -100,7 +104,11 @@ async function load() {
     status.value = s.data.training
     sessions.value = ss.data.sessions
     suggestions.value = d.data.suggestions || []
-  } catch (e) { console.warn(e) }
+    loadFailed.value = false
+  } catch (e) {
+    loadFailed.value = true
+    console.warn(e)
+  }
 }
 onMounted(load)
 setInterval(load, 5000)

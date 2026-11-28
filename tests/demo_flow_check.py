@@ -22,11 +22,24 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG = os.path.join(ROOT, "logs", "demo_run_log.csv")
 BASE = "http://127.0.0.1:8000"
+TOKEN = None
+
+
+def _ensure_token():
+    """本地自动化工具使用桌面端令牌通过鉴权。"""
+    global TOKEN
+    if not TOKEN:
+        r = urllib.request.Request(
+            BASE + "/api/auth/desktop-token", data=b"{}",
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(r, timeout=5) as resp:
+            TOKEN = json.loads(resp.read().decode("utf-8"))["token"]
+    return TOKEN
 
 
 def req(path, method="GET", payload=None, timeout=15):
     data = None
-    headers = {}
+    headers = {"Cookie": "xb_token=" + _ensure_token()}
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"

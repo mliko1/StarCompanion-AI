@@ -1,55 +1,63 @@
-// 演示版账号系统：账号只保存在浏览器 localStorage，不涉及后端与真实加密
-const USERS_KEY = 'xb_users'
-const SESSION_KEY = 'xb_session'
+// 真实账号体系：密码只存服务端哈希，浏览器只保留用户名与 HttpOnly Cookie 会话
+import { http } from './api'
 
-function readUsers() {
+const USER_KEY = 'xb_user'
+
+function msg(e, fallback) {
+  return (e.response && e.response.data && e.response.data.detail) || fallback
+}
+
+export async function login(username, password) {
   try {
-    return JSON.parse(localStorage.getItem(USERS_KEY)) || []
+    const { data } = await http.post('/api/auth/login', { username, password })
+    localStorage.setItem(USER_KEY, data.user)
+    return { ok: true, user: data.user }
   } catch (e) {
-    return []
+    return { ok: false, msg: msg(e, '登录失败，请稍后再试') }
   }
 }
 
-function writeUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users))
-}
-
-// 首次打开时写入演示账号 demo / 123456
-export function ensureDemoUser() {
-  const users = readUsers()
-  if (!users.some(u => u.username === 'demo')) {
-    users.push({ username: 'demo', password: '123456' })
-    writeUsers(users)
+export async function register(username, password) {
+  try {
+    const { data } = await http.post('/api/auth/register', { username, password })
+    return { ok: true, msg: data.msg }
+  } catch (e) {
+    return { ok: false, msg: msg(e, '注册失败，请稍后再试') }
   }
 }
 
-export function register(username, password) {
-  const name = (username || '').trim()
-  if (name.length < 2) return { ok: false, msg: '用户名至少 2 个字符' }
-  if ((password || '').length < 6) return { ok: false, msg: '密码至少 6 位' }
-  const users = readUsers()
-  if (users.some(u => u.username === name)) return { ok: false, msg: '该用户名已被注册' }
-  users.push({ username: name, password })
-  writeUsers(users)
-  return { ok: true }
+export async function logout() {
+  try {
+    await http.post('/api/auth/logout')
+  } catch (e) {
+    // 即使请求失败也清除本地状态
+  }
+  localStorage.removeItem(USER_KEY)
 }
 
-export function login(username, password) {
-  const name = (username || '').trim()
-  const user = readUsers().find(u => u.username === name && u.password === password)
-  if (!user) return { ok: false, msg: '用户名或密码不正确' }
-  localStorage.setItem(SESSION_KEY, name)
-  return { ok: true }
+export async function changePassword(oldPassword, newPassword) {
+  try {
+    const { data } = await http.post('/api/auth/change-password', {
+      old_password: oldPassword, new_password: newPassword,
+    })
+    localStorage.removeItem(USER_KEY)
+    return { ok: true, msg: data.msg }
+  } catch (e) {
+    return { ok: false, msg: msg(e, '修改失败，请稍后再试') }
+  }
 }
 
-export function logout() {
-  localStorage.removeItem(SESSION_KEY)
-}
-
-export function isLoggedIn() {
-  return !!localStorage.getItem(SESSION_KEY)
+export async function isLoggedIn() {
+  try {
+    const { data } = await http.get('/api/auth/me')
+    if (data.authenticated) localStorage.setItem(USER_KEY, data.user)
+    else localStorage.removeItem(USER_KEY)
+    return !!data.authenticated
+  } catch (e) {
+    return false
+  }
 }
 
 export function currentUser() {
-  return localStorage.getItem(SESSION_KEY) || ''
+  return localStorage.getItem(USER_KEY) || ''
 }

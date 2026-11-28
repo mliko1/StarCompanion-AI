@@ -9,11 +9,14 @@
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from api import auth as auth_api
+from api.auth import token_of
 from api import calibration as calibration_api
 from api import device as device_api
 from api import app as app_api
@@ -37,6 +40,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 登录前可访问的接口；其余 /api/* 一律要求有效令牌
+PUBLIC_PATHS = {
+    "/api/auth/login", "/api/auth/register", "/api/auth/me",
+    "/api/auth/desktop-token", "/api/status",
+    "/docs", "/redoc", "/openapi.json",
+}
+
+
+@app.middleware("http")
+async def no_cache_html(request: Request, call_next):
+    """前端入口不缓存，避免升级后家长浏览器仍跑旧版页面。"""
+    response = await call_next(request)
+    if (request.url.path in ("/", "/index.html") or
+            response.headers.get("content-type", "").startswith("text/html")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+@app.middleware("http")
+async def auth_guard(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/") and path not in PUBLIC_PATHS:
+        from services import auth_service
+        if not auth_service.verify_token(token_of(request)):
+            return JSONResponse(status_code=401, content={"detail": "请先登录"})
+    return await call_next(request)
 
 
 @app.on_event("startup")
@@ -74,6 +104,7 @@ def get_plan(child_id: int | None = None):
 
 
 # ---------- 注册子路由 ----------
+app.include_router(auth_api.router)
 app.include_router(training_api.router)
 app.include_router(camera_api.router)
 app.include_router(reports_api.router)

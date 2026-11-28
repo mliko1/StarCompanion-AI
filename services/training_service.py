@@ -485,11 +485,19 @@ class TrainingService:
         miss_since = None  # 最近一次 miss 的起始时间（用于抖动容差）
         self.action_frames = 0      # 每个动作重新统计命中率（置信度）
         self.action_hits = 0
+        last_frame_id = None
         while not self._stop_flag.is_set():
             if self._pause_flag.is_set():
                 time.sleep(0.1)
                 continue
-            smoothed, raw = camera.get_landmarks()
+            det = camera.get_detection()
+            # 轮询比摄像头快时，同一帧只消费一次，避免命中率/保持时长被重复累计
+            if det["frame_id"] == last_frame_id:
+                time.sleep(0.01)
+                continue
+            last_frame_id = det["frame_id"]
+            hands = det["hands"]
+            smoothed, raw = det["lms"], det["raw"]
             now = time.time()
             lms = raw if instant else smoothed
             if not lms:
@@ -499,7 +507,8 @@ class TrainingService:
                 time.sleep(0.05)
                 continue
             try:
-                hits = tracker.detect(lms, now)
+                hits = tracker.detect(lms, now, hands=hands,
+                                      frame_id=det["frame_id"])
             except Exception:
                 hits = []
             self.current_action = hits[0] if hits else None
@@ -543,11 +552,17 @@ class TrainingService:
                 if object_detector.load_custom_model(_cname):
                     print(f"[skill] 已加载家庭自定义模型: {_cname}")
         fsm = skill["fsm"]
+        last_frame_id = None
         while not self._stop_flag.is_set():
             if self._pause_flag.is_set():
                 time.sleep(0.1)
                 continue
 
+            det = camera.get_detection()
+            if det["frame_id"] == last_frame_id:
+                time.sleep(0.01)
+                continue
+            last_frame_id = det["frame_id"]
             frame = camera.get_raw_frame()
             now = time.time()
             if frame is None:
@@ -571,7 +586,7 @@ class TrainingService:
 
             # 人-物交互状态
             interaction = "uncertain"
-            _smoothed, raw_lms = camera.get_landmarks()
+            raw_lms = det["raw"]
             if raw_lms is not None:
                 if skill["inter"] is None:
                     # 个体化：传入孩子惯用手，优先追踪该手
@@ -580,7 +595,7 @@ class TrainingService:
                         preferred_hand=self.effective.get(
                             "preferred_hand", "unknown"))
                 interaction, _ev, _ch = skill["inter"].update(
-                    raw_lms, detections, now)
+                    raw_lms, detections, now, hands=det["hands"])
 
             if not skill["started"]:
                 skill["started"] = True

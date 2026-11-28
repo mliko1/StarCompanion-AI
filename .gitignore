@@ -54,6 +54,11 @@ Thumbs.db
 
 _backend_*.log
 
+# ===== 打包产物（由 scripts/build_launcher.py 本地生成）=====
+build/
+*.spec
+星伴AI.exe
+
 # ===== 早期原型/旧报告（已从仓库移除，本地保留备查）=====
 vision/pose_camera.py
 vision/raise_hand.py

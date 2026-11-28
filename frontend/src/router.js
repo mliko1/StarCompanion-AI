@@ -26,10 +26,11 @@ const router = createRouter({
   routes,
 })
 
-// 未登录只看登录页；已登录不再回登录页
-router.beforeEach((to) => {
-  if (!to.meta.public && !isLoggedIn()) return { path: '/login' }
-  if (to.path === '/login' && isLoggedIn()) return { path: '/' }
+// 以服务端会话为准：后端重启后 Cookie 失效，打开系统第一件事就是登录
+router.beforeEach(async (to) => {
+  const logged = await isLoggedIn()
+  if (!to.meta.public && !logged) return { path: '/login' }
+  if (to.path === '/login' && logged) return { path: '/' }
   return true
 })
 
