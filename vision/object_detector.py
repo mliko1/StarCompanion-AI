@@ -111,6 +111,7 @@ def _collect(model, class_names, frame, conf, ids=None):
                 "confidence": float(box.conf[0]),
                 "center": ((x1 + x2) / 2, (y1 + y2) / 2),
                 "area": (x2 - x1) * (y2 - y1),
+                "track_id": None,
             })
     return detections
 
@@ -133,6 +134,68 @@ def detect_objects(frame, conf=CONF_THRESHOLD, classes=None):
     for _cls, _model in CUSTOM_MODELS.items():
         detections += _collect(_model, CUSTOM_CLASS_NAMES[_cls], frame, conf)
     return detections
+
+
+def _collect_tracking(model, class_names, frame, conf, source, ids=None):
+    """用 Ultralytics 内置 ByteTrack 跟踪，给每个检测结果稳定 track_id。"""
+    results = model.track(frame, persist=True, conf=conf, classes=ids,
+                          imgsz=480, verbose=False)
+    detections = []
+    for r in results:
+        if r.boxes is None:
+            continue
+        for box in r.boxes:
+            x1, y1, x2, y2 = [float(v) for v in box.xyxy[0]]
+            raw_id = None
+            if getattr(box, "id", None) is not None:
+                try:
+                    raw_id = int(box.id[0])
+                except (ValueError, TypeError, IndexError):
+                    raw_id = None
+            detections.append({
+                "name": class_names[int(box.cls[0])],
+                "bbox": (x1, y1, x2, y2),
+                "confidence": float(box.conf[0]),
+                "center": ((x1 + x2) / 2, (y1 + y2) / 2),
+                "area": (x2 - x1) * (y2 - y1),
+                # 不同检测源 ID 可能重复，加前缀区分（COCO / 各家庭模型）
+                "track_id": f"{source}:{raw_id}" if raw_id is not None else None,
+            })
+    return detections
+
+
+def track_objects(frame, conf=CONF_THRESHOLD, classes=None):
+    """带目标跟踪的物品检测：返回与 detect_objects 相同结构，额外含 track_id。
+
+    跟踪失败时自动回退到普通检测，保证功能不中断。
+    """
+    if MODEL is None:
+        load_model()
+    if classes is None:
+        classes = TARGET_CLASSES
+    ids = [i for i, n in CLASS_NAMES.items() if n in classes]
+    try:
+        detections = _collect_tracking(MODEL, CLASS_NAMES, frame, conf,
+                                       "coco", ids)
+        for cname, model in CUSTOM_MODELS.items():
+            detections += _collect_tracking(
+                model, CUSTOM_CLASS_NAMES[cname], frame, conf, cname)
+        return detections
+    except Exception:
+        return detect_objects(frame, conf=conf, classes=classes)
+
+
+def reset_tracking():
+    """清空跟踪器状态（新开一次训练时调用，避免沿用上次 ID）。"""
+    for model in [MODEL] + list(CUSTOM_MODELS.values()):
+        if model is None:
+            continue
+        try:
+            predictor = getattr(model, "predictor", None)
+            if predictor is not None and hasattr(predictor, "trackers"):
+                predictor.trackers = [[]]
+        except Exception:
+            pass
 
 
 def draw_detections(frame, detections):

@@ -131,7 +131,8 @@ def _angle(a, b, c):
     return math.degrees(math.acos(cos))
 
 
-def _eval(lms, cond, scale=1.0, hands=None, geom_scale=1.0):
+def _value_threshold(lms, cond, scale=1.0, hands=None, geom_scale=1.0):
+    """返回条件的实际值 v 与（个体化缩放后的）阈值 t。"""
     f = cond["f"]
     if f == "dy":
         v = (_resolve(lms, cond["a"], hands).y -
@@ -163,8 +164,27 @@ def _eval(lms, cond, scale=1.0, hands=None, geom_scale=1.0):
         v = _resolve(lms, cond["a"], hands).visibility
     else:
         raise ValueError(f"未知特征: {f}")
-    val = _scaled_val(f, cond["op"], cond["val"], scale)
+    return v, _scaled_val(f, cond["op"], cond["val"], scale)
+
+
+def _eval(lms, cond, scale=1.0, hands=None, geom_scale=1.0):
+    v, val = _value_threshold(lms, cond, scale, hands, geom_scale)
     return _OPS[cond["op"]](v, val)
+
+
+# 条件"Margin"折算成置信度时的尺度：角度用度、其余用归一化坐标
+_SCORE_SPAN = {
+    "dy": 0.12, "dx": 0.12, "dist": 0.12, "ratio": 0.30,
+    "dy_ratio": 0.20, "angle": 30.0, "vis": 0.20,
+}
+
+
+def _cond_score(lms, cond, scale=1.0, hands=None, geom_scale=1.0):
+    """单条件连续置信度 0~1：刚过阈值约 0.5，越充分越接近 1。"""
+    v, t = _value_threshold(lms, cond, scale, hands, geom_scale)
+    margin = t - v if cond["op"] in ("<", "<=") else v - t
+    span = _SCORE_SPAN.get(cond["f"], 0.2)
+    return max(0.0, min(1.0, 0.5 + margin / (2.0 * span)))
 
 
 def load_actions(path=ACTIONS_JSON):
@@ -202,9 +222,10 @@ def _resolve_conflicts(hits, actions, protect=None):
     return [a["id"] for a in actions if a["id"] in keep]
 
 
-def detect_actions(lms, actions=None, amplitude_scale=1.0,
-                   allowed=None, protect=None, hands=None, normalize_scale=True):
-    """返回命中的所有动作 id 列表。lms 为原始关键点。
+def _detect_with_scores(lms, actions=None, amplitude_scale=1.0,
+                        allowed=None, protect=None, hands=None,
+                        normalize_scale=True):
+    """内部实现：返回 (动作 id 列表, {id: 连续置信度})。lms 为原始关键点。
 
     规则结构：a["rules"] 是一组条件组（组内 AND，组间 OR）。
     例如"摸头"可用左手或右手，写成两组。
@@ -217,12 +238,13 @@ def detect_actions(lms, actions=None, amplitude_scale=1.0,
     protect：受保护动作 id 集合，冲突消解时不得被压制。
     """
     if not lms:
-        return []
+        return [], {}
     actions = actions if actions is not None else load_actions()
     allow_set = set(allowed) if allowed is not None else None
     # 身体尺度归一：把不同远近的孩子投影回参考肩宽，阈值不必按距离手调。
     geom_scale = 1.0 / (body_scale(lms) if normalize_scale else 1.0)
     hits = set()
+    scores = {}
     for a in actions:
         if allow_set is not None and a["id"] not in allow_set:
             continue
@@ -235,10 +257,32 @@ def detect_actions(lms, actions=None, amplitude_scale=1.0,
         if not all(point_reliable(lms[i], min_visibility=a.get("min_visibility", 0.3))
                    for i in needed):
             continue
-        if any(all(_eval(lms, c, amplitude_scale, hands, geom_scale)
-                   for c in group) for group in a["rules"]):
+        for group in a["rules"]:
+            if not all(_eval(lms, c, amplitude_scale, hands, geom_scale)
+                       for c in group):
+                continue
             hits.add(a["id"])
-    return _resolve_conflicts(hits, actions, protect=protect)
+            # 多组 OR 取"最充分的一组"；组内 AND 取最弱条件（木桶效应）
+            scores[a["id"]] = max(
+                scores.get(a["id"], 0.0),
+                min(_cond_score(lms, c, amplitude_scale, hands, geom_scale)
+                    for c in group))
+    return _resolve_conflicts(hits, actions, protect=protect), scores
+
+
+def detect_actions(lms, actions=None, amplitude_scale=1.0,
+                   allowed=None, protect=None, hands=None, normalize_scale=True):
+    """返回命中的所有动作 id 列表。"""
+    return _detect_with_scores(lms, actions, amplitude_scale, allowed,
+                               protect, hands, normalize_scale)[0]
+
+
+def detect_actions_with_scores(lms, actions=None, amplitude_scale=1.0,
+                               allowed=None, protect=None, hands=None,
+                               normalize_scale=True):
+    """返回 (动作 id 列表, {id: 连续置信度 0~1})。"""
+    return _detect_with_scores(lms, actions, amplitude_scale, allowed,
+                               protect, hands, normalize_scale)
 
 
 class ActionTracker:
@@ -266,21 +310,23 @@ class ActionTracker:
         self._clap = ClapCounter(speed_scale=speed_scale)
         self._streak = {}
         self._last_frame_id = None
+        self.last_scores = {}   # 最近一帧各命中动作的连续置信度
 
     def reset(self):
         self._clap.reset()
         self._streak.clear()
         self._last_frame_id = None
+        self.last_scores = {}
 
     def detect(self, lms, now, hands=None, frame_id=None):
         if frame_id is not None:
             if frame_id == self._last_frame_id:
                 return []
             self._last_frame_id = frame_id
-        hits = detect_actions(lms, self.actions,
-                              amplitude_scale=self.amplitude_scale,
-                              allowed=self.allowed, protect=self.protect,
-                              hands=hands)
+        hits, scores = detect_actions_with_scores(
+            lms, self.actions, amplitude_scale=self.amplitude_scale,
+            allowed=self.allowed, protect=self.protect, hands=hands)
+        self.last_scores = scores
         # 每帧都维护 clap 的 ratio 历史（骤降防伪需要"分开→合拢"的完整
         # 时序，不能只在单帧命中 clap 时才更新，否则高 ratio 入不了历史）。
         contact, ratio = clap_check(lms, self._clap.contact, hands=hands)

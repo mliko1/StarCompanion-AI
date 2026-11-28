@@ -485,6 +485,8 @@ class TrainingService:
         miss_since = None  # 最近一次 miss 的起始时间（用于抖动容差）
         self.action_frames = 0      # 每个动作重新统计命中率（置信度）
         self.action_hits = 0
+        self.action_score_sum = 0.0  # 连续置信度累计（规则裕量）
+        self.action_score_frames = 0
         last_frame_id = None
         while not self._stop_flag.is_set():
             if self._pause_flag.is_set():
@@ -516,6 +518,10 @@ class TrainingService:
             self.action_frames += 1
             if hit:
                 self.action_hits += 1
+                sc = tracker.last_scores.get(target_action)
+                if sc is not None:
+                    self.action_score_sum += float(sc)
+                    self.action_score_frames += 1
             if hit:
                 self.detected_now = True
                 miss_since = None
@@ -546,6 +552,7 @@ class TrainingService:
             self._finish_skill(completed=False)
             return
         skill = self.skill
+        object_detector.reset_tracking()  # 新训练重新编号，避免沿用上次 ID
         # 家庭个性化：加载目标物/放置目标对应的自定义模型（可多个并存）
         for _cname in list(skill["containers"]) + [skill["target"]]:
             if object_detector.has_custom_model(_cname):
@@ -572,7 +579,7 @@ class TrainingService:
 
             # YOLO 物品检测
             try:
-                detections = object_detector.detect_objects(frame, conf=0.35)
+                detections = object_detector.track_objects(frame, conf=0.35)
             except Exception:
                 detections = []
 
@@ -620,9 +627,12 @@ class TrainingService:
         skill = self.skill
         cur = set(st["completed_steps"])
         for step in cur - skill["prev_completed"]:
+            step_conf = (getattr(skill["inter"], "confidence", 0.0)
+                         if skill.get("inter") else 0.0)
             events.add(make_event(
                 "step_completed", STEP_NAMES_CN.get(step, step), now,
-                task_step=step, confidence=1.0, session_id=self.session_id))
+                task_step=step, confidence=round(step_conf, 3),
+                session_id=self.session_id))
             # 语音播报：完成当前步骤 + 提示下一步
             cn = STEP_NAMES_CN.get(step, step)
             nxt = STEP_NAMES_CN.get(_NEXT_STEP.get(step))
@@ -647,7 +657,8 @@ class TrainingService:
         return {"name": det["name"],
                 "bbox": (x1 / w, y1 / h, x2 / w, y2 / h),
                 "center": (det["center"][0] / w, det["center"][1] / h),
-                "confidence": det["confidence"]}
+                "confidence": det["confidence"],
+                "track_id": det.get("track_id")}
 
     # ---------- 结束 ----------
     def _finish(self, completed):
@@ -656,9 +667,13 @@ class TrainingService:
             self.state = "running"  # 方案模式：单个动作结束，方案仍在进行
         else:
             self.state = action_state
-        # 命中率作为置信度（而非恒 1.0/0.0）
-        conf = (self.action_hits / self.action_frames
-                if self.action_frames > 0 else (1.0 if completed else 0.0))
+        # 置信度 = 命中率 × 规则裕量（连续分数），而非恒 1.0/0.0。
+        # 刚过阈值只给约 0.5，越充分越接近 1；命中率低时仍保持低置信。
+        hit_rate = (self.action_hits / self.action_frames
+                    if self.action_frames > 0 else (1.0 if completed else 0.0))
+        margin = (self.action_score_sum / self.action_score_frames
+                  if self.action_score_frames > 0 else 1.0)
+        conf = round(max(0.0, min(1.0, hit_rate * margin)), 3)
         if self.session_id:
             s = crud.get_session(self.session_id)
             elapsed = 0.0
@@ -743,11 +758,14 @@ class TrainingService:
             crud.update_session(
                 self.session_id, status=self.state, completed=completed,
                 end_time=datetime.datetime.now(), elapsed_sec=round(elapsed, 1))
+            step_conf = (getattr(self.skill["inter"], "confidence", 0.0)
+                         if self.skill and self.skill.get("inter") else 0.0)
             for i, step in enumerate(self.completed_steps):
                 crud.add_action_record(
                     self.session_id, step_order=i,
                     step_name=STEP_NAMES_CN.get(step, step),
-                    action_id=step, detected=True, confidence=1.0)
+                    action_id=step, detected=True,
+                    confidence=round(step_conf, 3))
         events.add(make_event(
             "task_finished", self.task.name if self.task else "", time.time(),
             session_id=self.session_id,

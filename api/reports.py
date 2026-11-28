@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from database import crud
+from database.db import SessionLocal as report_session_local
 from services import report_service
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
@@ -79,10 +80,62 @@ class ReviewRequest(BaseModel):
     note: str | None = None
 
 
+def _apply_review_to_profile(vision_record_id, req):
+    """人工复核回流个体化档案：只首次复核生效，避免重复提交反复改阈值。"""
+    from database import models
+    from core.personalization import (PersonalProfile, PROFILE_PARAMS,
+                                      effective_params)
+
+    db = report_session_local()
+    try:
+        if (db.query(models.ManualReview)
+                .filter_by(vision_record_id=vision_record_id).count() != 1):
+            return None
+        vr = db.get(models.VisionRecord, vision_record_id)
+        if not vr or not vr.session_id:
+            return None
+        s = db.get(models.TrainingSession, vr.session_id)
+        if not s or not s.child_id or not s.task_id:
+            return None
+        child_id, task_id = s.child_id, s.task_id
+    finally:
+        db.close()
+
+    profile = PersonalProfile(child_id, task_id)
+    for row in crud.list_personal_profiles(child_id=child_id, task_id=task_id):
+        profile.set_slot(row.param_key, row.samples, row.reviews)
+    corrected = req.corrected_result or {}
+    text = " ".join(str(v) for v in corrected.values() if v is not None)
+
+    # 明确给出惯用手（或纠正文本里写了左/右手）时，作为已审核样本记录
+    hand = corrected.get("preferred_hand")
+    if hand not in PROFILE_PARAMS["preferred_hand"]["values"]:
+        hand = None
+        if "左手" in text or "_left" in text:
+            hand = "left"
+        elif "右手" in text or "_right" in text:
+            hand = "right"
+    if hand:
+        profile.record("preferred_hand", hand, reviewed=True, correct=True)
+
+    # 幅度容差：识别正确记录 1.0；识别有误则适度放宽（下限 0.4），
+    # 让"孩子动作幅度小导致漏判"在后续训练中逐步得到适配。
+    current = effective_params(profile).get("amplitude_scale", 1.0)
+    sample = 1.0 if req.is_correct else round(max(0.4, min(1.0, current * 0.85)), 3)
+    profile.record("amplitude_scale", sample,
+                   reviewed=True, correct=bool(req.is_correct))
+    crud.sync_personal_profile_from_logic(profile)
+    return sample
+
+
 @router.post("/review")
 def review(req: ReviewRequest):
     r = crud.add_manual_review(req.vision_record_id, req.reviewer,
                                req.is_correct, req.corrected_result, req.note)
+    try:
+        _apply_review_to_profile(req.vision_record_id, req)
+    except Exception as e:
+        print(f"[review] 个体化回流失败: {e}")
     # 复核回写（P1-11）：把对应不确定会话标记为已确认，统计不再当作待确认
     try:
         from database.db import SessionLocal

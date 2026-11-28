@@ -72,6 +72,8 @@ class InteractionDetector:
         self.evidence = {}
         self.last_bbox = None        # 最后一次检测到的目标框（宽限期用）
         self.last_seen = 0.0         # 最后检测到目标的时刻
+        self.target_track_id = None  # 当前锁定目标的跟踪 ID（防同类物品串台）
+        self.confidence = 0.0        # 最近一帧交互判定的连续置信度
         self.GRACE_SEC = 0.5         # 目标丢失宽限期
 
     def _hand_order(self):
@@ -87,14 +89,46 @@ class InteractionDetector:
         self.state = new_state
         return changed
 
+    def _hand_centers(self, lms, hands):
+        """返回 [(掌心坐标, 'left'/'right')]，优先 21 点，缺失时回退 Pose。"""
+        out = []
+        for idx_pts, hname in self._hand_order():
+            hx, hy = None, None
+            if hands:
+                side = "L" if idx_pts == HAND_POINTS_L else "R"
+                c = hand_center_21(hands.get(side))
+                if c is not None:
+                    hx, hy = c
+            if (hx is None and len(lms) > max(idx_pts) and
+                    all(point_reliable(lms[i]) for i in idx_pts)):
+                hx, hy = hand_center(lms, idx_pts)
+            if hx is not None:
+                out.append(((hx, hy), hname))
+        return out
+
     def update(self, lms, detections, now, hands=None):
         """输入姿态关键点/手部 21 点和物品检测，返回 (state, evidence, changed)。"""
-        # 1. 找目标物品（按名字匹配，取置信度最高者）
+        # 1. 找目标物品：优先沿用已锁定的 track_id；同类物品多实例时防止串台
+        candidates = [d for d in detections if d["name"] == self.target_name]
         target = None
-        for det in detections:
-            if det["name"] == self.target_name:
-                if target is None or det["confidence"] > target["confidence"]:
-                    target = det
+        if self.target_track_id is not None:
+            target = next(
+                (d for d in candidates
+                 if d.get("track_id") == self.target_track_id), None)
+        if target is None and candidates:
+            # 首次锁定：优先离手最近的候选；手不可见时才退化为置信度最高者
+            centers = self._hand_centers(lms, hands)
+            if centers:
+                def hand_dist(d):
+                    bx1, by1, bx2, by2 = d["bbox"]
+                    return min(dist_to_bbox(h[0] * self.frame_w,
+                                            h[1] * self.frame_h,
+                                            (bx1, by1, bx2, by2))
+                               for h, _ in centers)
+                target = min(candidates, key=hand_dist)
+            else:
+                target = max(candidates, key=lambda d: d["confidence"])
+            self.target_track_id = target.get("track_id")
         if target is None:
             # 宽限期：检测偶尔丢帧时沿用最后已知位置，避免状态闪烁
             if self.last_bbox is not None and now - self.last_seen < self.GRACE_SEC:
@@ -122,19 +156,7 @@ class InteractionDetector:
         # 3. 手部中心选择（个体化：指定惯用手时优先该手，忽略另一手干扰）
         hand, hand_name = None, None
         prefer = self.preferred_hand in ("left", "right")
-        for idx_pts, hname in self._hand_order():
-            hx, hy = None, None
-            # 优先用 21 点掌心；手部模型未启用时回退到 Pose 4 点并做可靠性校验
-            if hands:
-                side = "L" if idx_pts == HAND_POINTS_L else "R"
-                c = hand_center_21(hands.get(side))
-                if c is not None:
-                    hx, hy = c
-            if (hx is None and len(lms) > max(idx_pts) and
-                    all(point_reliable(lms[i]) for i in idx_pts)):
-                hx, hy = hand_center(lms, idx_pts)
-            if hx is None:
-                continue
+        for (hx, hy), hname in self._hand_centers(lms, hands):
             if prefer:
                 # 惯用手模式：_hand_order 把惯用手排第一，可见即采用
                 hand, hand_name = (hx, hy), hname
@@ -188,11 +210,20 @@ class InteractionDetector:
             if self.state != "placing_candidate":
                 changed = self._switch("uncertain")
 
+        vote_ratio = (sum(self.near_votes) / len(self.near_votes)
+                      if self.near_votes else 0.0)
+        # 连续置信度：投票越一致、手离物品越近、目标跟踪越稳定，分数越高
+        proximity = max(0.0, min(1.0, 1.0 - dist / 2.0))
+        tracking_bonus = 0.1 if self.target_track_id else 0.0
+        self.confidence = round(
+            min(1.0, 0.55 * vote_ratio + 0.35 * proximity + tracking_bonus), 3)
         self.evidence = {
             "hand": hand_name,
             "dist": round(dist, 3),
             "frame_disp": round(disp, 3),
             "votes": f"{sum(self.near_votes)}/{len(self.near_votes)}",
+            "track_id": self.target_track_id,
+            "confidence": self.confidence,
         }
         return self.state, self.evidence, changed
 
